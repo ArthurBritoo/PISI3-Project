@@ -3,21 +3,24 @@ import pandas as pd
 import os
 
 def load_and_preprocess_data(data_dir='data'):
-    all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.csv')]
+    all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.parquet')]
     
     li = []
 
     for filename in all_files:
-        df = pd.read_csv(filename, sep=';', decimal=',')
+        df = pd.read_parquet(filename, engine='pyarrow')
         li.append(df)
 
     df = pd.concat(li, axis=0, ignore_index=True)
     
-    # Limpeza e conversão de tipos
-    df['valor_avaliacao'] = df['valor_avaliacao'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
-    df['area_construida'] = df['area_construida'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
-    df['area_terreno'] = df['area_terreno'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
-    df['sfh'] = df['sfh'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
+    # Para arquivos Parquet, os tipos já estão preservados, mas vamos garantir conversões seguras
+    # Conversões numéricas com tratamento de erros
+    numeric_columns = ['valor_avaliacao', 'area_construida', 'area_terreno', 'sfh']
+    
+    for col in numeric_columns:
+        if col in df.columns:
+            # Converte para string primeiro para tratar vírgulas/pontos se necessário
+            df[col] = pd.to_numeric(df[col], errors='coerce')
     
     # Preencher valores nulos em 'sfh' com 0.0, pois parece ser um valor monetário ou indicador
     df['sfh'] = df['sfh'].fillna(0.0)
