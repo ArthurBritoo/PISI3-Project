@@ -4,7 +4,7 @@ import plotly.express as px
 import dash
 from dash import dcc, html
 
-# Load all CSV files from the data folder
+# Carrega todos os arquuivos CSV da pasta data
 data_folder = 'data'
 files = [f for f in os.listdir(data_folder) if f.endswith('.csv')]
 
@@ -14,11 +14,9 @@ for file in files:
     df['year'] = file.split('_')[1].split('.')[0]  # Extract year from filename
     df_list.append(df)
 
-# Concatenate all dataframes
+
 data = pd.concat(df_list, ignore_index=True)
 
-# Example: Assume columns 'Valor', 'Ano', 'Bairro' exist. Adjust as needed.
-# If columns differ, update below accordingly.
 
 app = dash.Dash(__name__)
 
@@ -44,3 +42,4 @@ def update_graph(selected_year):
 
 if __name__ == '__main__':
     app.run_server(debug=True)
+
