@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import os
@@ -23,17 +22,6 @@ df = get_data()
 
 st.title("Análise Exploratória do Mercado Imobiliário de Recife (ITBI 2015-2023)")
 st.markdown("Esta aplicação apresenta uma análise exploratória dos dados do Imposto sobre a Transmissão de Bens Imóveis (ITBI) de Recife, abrangendo o período de 2015 a 2023.")
-
-st.sidebar.header("Filtros e Opções")
-
-# Filtro de Bairro para Heatmap
-bairros_disponiveis = sorted(df["bairro"].unique().tolist())
-selected_bairro = st.sidebar.selectbox("Selecione um Bairro para o Heatmap", bairros_disponiveis, index=bairros_disponiveis.index("BOA VIAGEM") if "BOA VIAGEM" in bairros_disponiveis else 0)
-
-# Exibir dados brutos (opcional)
-if st.sidebar.checkbox("Mostrar Dados Brutos"): 
-    st.subheader("Dados Brutos (Amostra)")
-    st.dataframe(df.head())
 
 st.subheader("1. Valor Médio do Metro Quadrado por Bairro")
 st.plotly_chart(plot_valor_m2_por_bairro(df), use_container_width=True)
