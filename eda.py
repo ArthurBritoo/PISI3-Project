@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import os
@@ -29,17 +28,6 @@ Esta aplicação apresenta uma análise completa dos dados do ITBI de Recife:
 - **Seções 1-5**: Análise exploratória geral de todos os tipos de imóveis
 - **Seção 6**: Clusterização focada em imóveis residenciais (apartamentos e casas)
 """)
-
-st.sidebar.header("Filtros e Opções")
-
-# Filtro de Bairro para Heatmap
-bairros_disponiveis = sorted(df["bairro"].unique().tolist())
-selected_bairro = st.sidebar.selectbox("Selecione um Bairro para o Heatmap", bairros_disponiveis, index=bairros_disponiveis.index("BOA VIAGEM") if "BOA VIAGEM" in bairros_disponiveis else 0)
-
-# Exibir dados brutos (opcional)
-if st.sidebar.checkbox("Mostrar Dados Brutos"): 
-    st.subheader("Dados Brutos (Amostra)")
-    st.dataframe(df.head())
 
 st.subheader("1. Valor Médio do Metro Quadrado por Bairro")
 st.plotly_chart(plot_valor_m2_por_bairro(df), use_container_width=True)
