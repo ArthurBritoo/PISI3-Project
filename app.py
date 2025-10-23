@@ -149,6 +149,28 @@ with tab1:
     
     st.subheader("5. Evolução do Valor do m² por Ano")
     st.plotly_chart(plot_valor_m2_por_ano(df), use_container_width=True)
+    
+    st.divider()
+    
+    # Download de dados da EDA
+    with st.expander("📥 Exportar dados para análise"):
+        st.markdown("**Dados completos do ITBI Recife:**")
+        csv_eda = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Baixar dados completos (CSV)",
+            data=csv_eda,
+            file_name="itbi_recife_completo.csv",
+            mime="text/csv"
+        )
+        
+        st.markdown("**Resumo estatístico:**")
+        csv_stats = df.describe().to_csv().encode("utf-8")
+        st.download_button(
+            "Baixar resumo estatístico (CSV)",
+            data=csv_stats,
+            file_name="itbi_recife_resumo.csv",
+            mime="text/csv"
+        )
 
 # ==================== TAB 2: CLUSTERING DE PERFIS ====================
 
@@ -166,17 +188,109 @@ with tab2:
     col3.metric("Clusters", "5 perfis")
     col4.metric("Features", len(features))
     
-    # Explicação dos perfis
-    with st.expander("ℹ️ Entenda os 5 Perfis de Mercado"):
-        st.markdown("""
-        **Clustering K-means** agrupa imóveis por características similares:
+    # Explicação dos perfis com estatísticas reais
+    with st.expander("ℹ️ Entenda os 5 Perfis de Mercado (com Parâmetros Exatos)"):
+        # Calcula estatísticas reais de cada cluster
+        cluster_details = df_clustered.groupby("cluster").agg({
+            "valor_m2": ["min", "max", "median", "mean"],
+            "area_construida": ["min", "max", "median"],
+            "area_terreno": ["min", "max", "median"],
+            "ano_construcao": ["min", "max"]
+        }).round(2)
         
-        - 🏠 **Popular**: Menor valor, área compacta, padrão simples
-        - 🏡 **Entrada**: Intermediário inferior, bom custo-benefício
-        - 🏘️ **Intermediário**: Padrão médio, áreas moderadas
-        - 🏙️ **Alto Padrão**: Imóveis maiores, acabamento superior
-        - 💎 **Premium**: Elite do mercado, máximo valor e área
-        """)
+        st.markdown("""
+        **Metodologia:** Clustering K-means com 5 grupos, usando 4 features normalizadas:
+        - `valor_m2` (Valor por metro quadrado)
+        - `area_construida` (Área construída total)
+        - `area_terreno` (Área do terreno)
+        - `ano_construcao` (Ano de construção do imóvel)
+        
+        **Silhouette Score:** {:.3f} (qualidade da separação dos clusters)
+        
+        ---
+        
+        ### 🏠 **Cluster 0 - Popular**
+        - **Valor m²:** R$ {:.0f} - R$ {:.0f} (mediana: R$ {:.0f})
+        - **Área Construída:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Área Terreno:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Perfil:** Imóveis de entrada, menor valor por m², áreas compactas, construções mais antigas
+        
+        ### 🏡 **Cluster 1 - Entrada**
+        - **Valor m²:** R$ {:.0f} - R$ {:.0f} (mediana: R$ {:.0f})
+        - **Área Construída:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Área Terreno:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Perfil:** Bom custo-benefício, intermediário inferior, adequado para primeiro imóvel
+        
+        ### 🏘️ **Cluster 2 - Intermediário**
+        - **Valor m²:** R$ {:.0f} - R$ {:.0f} (mediana: R$ {:.0f})
+        - **Área Construída:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Área Terreno:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Perfil:** Classe média, equilíbrio entre área e valor, padrão de acabamento médio
+        
+        ### 🏙️ **Cluster 3 - Alto Padrão**
+        - **Valor m²:** R$ {:.0f} - R$ {:.0f} (mediana: R$ {:.0f})
+        - **Área Construída:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Área Terreno:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Perfil:** Imóveis maiores, acabamento superior, valor m² elevado
+        
+        ### 💎 **Cluster 4 - Premium**
+        - **Valor m²:** R$ {:.0f} - R$ {:.0f} (mediana: R$ {:.0f})
+        - **Área Construída:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Área Terreno:** {:.0f}m² - {:.0f}m² (mediana: {:.0f}m²)
+        - **Perfil:** Elite do mercado, máximo valor m², grandes áreas, construções recentes
+        """.format(
+            silhouette_score,
+            # Cluster 0
+            cluster_details.loc[0, ("valor_m2", "min")],
+            cluster_details.loc[0, ("valor_m2", "max")],
+            cluster_details.loc[0, ("valor_m2", "median")],
+            cluster_details.loc[0, ("area_construida", "min")],
+            cluster_details.loc[0, ("area_construida", "max")],
+            cluster_details.loc[0, ("area_construida", "median")],
+            cluster_details.loc[0, ("area_terreno", "min")],
+            cluster_details.loc[0, ("area_terreno", "max")],
+            cluster_details.loc[0, ("area_terreno", "median")],
+            # Cluster 1
+            cluster_details.loc[1, ("valor_m2", "min")],
+            cluster_details.loc[1, ("valor_m2", "max")],
+            cluster_details.loc[1, ("valor_m2", "median")],
+            cluster_details.loc[1, ("area_construida", "min")],
+            cluster_details.loc[1, ("area_construida", "max")],
+            cluster_details.loc[1, ("area_construida", "median")],
+            cluster_details.loc[1, ("area_terreno", "min")],
+            cluster_details.loc[1, ("area_terreno", "max")],
+            cluster_details.loc[1, ("area_terreno", "median")],
+            # Cluster 2
+            cluster_details.loc[2, ("valor_m2", "min")],
+            cluster_details.loc[2, ("valor_m2", "max")],
+            cluster_details.loc[2, ("valor_m2", "median")],
+            cluster_details.loc[2, ("area_construida", "min")],
+            cluster_details.loc[2, ("area_construida", "max")],
+            cluster_details.loc[2, ("area_construida", "median")],
+            cluster_details.loc[2, ("area_terreno", "min")],
+            cluster_details.loc[2, ("area_terreno", "max")],
+            cluster_details.loc[2, ("area_terreno", "median")],
+            # Cluster 3
+            cluster_details.loc[3, ("valor_m2", "min")],
+            cluster_details.loc[3, ("valor_m2", "max")],
+            cluster_details.loc[3, ("valor_m2", "median")],
+            cluster_details.loc[3, ("area_construida", "min")],
+            cluster_details.loc[3, ("area_construida", "max")],
+            cluster_details.loc[3, ("area_construida", "median")],
+            cluster_details.loc[3, ("area_terreno", "min")],
+            cluster_details.loc[3, ("area_terreno", "max")],
+            cluster_details.loc[3, ("area_terreno", "median")],
+            # Cluster 4
+            cluster_details.loc[4, ("valor_m2", "min")],
+            cluster_details.loc[4, ("valor_m2", "max")],
+            cluster_details.loc[4, ("valor_m2", "median")],
+            cluster_details.loc[4, ("area_construida", "min")],
+            cluster_details.loc[4, ("area_construida", "max")],
+            cluster_details.loc[4, ("area_construida", "median")],
+            cluster_details.loc[4, ("area_terreno", "min")],
+            cluster_details.loc[4, ("area_terreno", "max")],
+            cluster_details.loc[4, ("area_terreno", "median")]
+        ))
     
     st.divider()
     
@@ -239,6 +353,28 @@ with tab2:
     )
     fig_geo.update_layout(xaxis_tickangle=-45)
     st.plotly_chart(fig_geo, use_container_width=True)
+    
+    st.divider()
+    
+    # Download de dados de clustering
+    with st.expander("📥 Exportar análise de clusters"):
+        st.markdown("**Resumo dos clusters:**")
+        csv_cluster_summary = cluster_stats.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Baixar resumo de clusters (CSV)",
+            data=csv_cluster_summary,
+            file_name="clusters_resumo.csv",
+            mime="text/csv"
+        )
+        
+        st.markdown("**Dados completos com clustering:**")
+        csv_clustered = df_clustered.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Baixar dados clustering completo (CSV)",
+            data=csv_clustered,
+            file_name="dados_clustering_completo.csv",
+            mime="text/csv"
+        )
 
 # ==================== TAB 3: DASHBOARD REGIONAL ====================
 
@@ -254,17 +390,15 @@ with tab3:
     with st.sidebar:
         st.subheader("🗺️ Filtros - Regional")
         
-        min_tx_per_region = st.number_input(
-            "Mínimo tx/região",
-            min_value=50, max_value=2000, value=200, step=50
-        )
+        min_tx_per_region = 200  # Fixado em 200 transações por região
+        st.info(f"Mínimo de transações por região: **{min_tx_per_region}** (fixo)")
         
         anos = sorted(df_res["data_transacao"].dt.year.dropna().unique().tolist())
         min_ano, max_ano = (anos[0], anos[-1]) if anos else (2015, 2023)
         ano_range = st.slider("Período", min_ano, max_ano, (min_ano, max_ano))
         
-        aggr_label = st.radio("Agregação", ["Mediana", "Média"], index=0)
-        aggr_func = "median" if aggr_label == "Mediana" else "mean"
+        aggr_label = st.radio("Agregação", ["Média", "Mediana"], index=0)
+        aggr_func = "mean" if aggr_label == "Média" else "median"
         
         top_n = st.selectbox("Top N", [10, 20, 30], index=0)
     
@@ -297,7 +431,7 @@ with tab3:
     st.divider()
     
     # Gráficos regionais
-    st.subheader(f"Top {top_n} Regiões por Valor m²")
+    st.subheader(f"1. Valor do Metro Quadrado por Região — Top {top_n} ({aggr_label})")
     g1 = (
         dff.groupby("regiao")["valor_m2"]
         .agg(aggr_func)
@@ -307,48 +441,102 @@ with tab3:
     )
     fig1 = px.bar(
         g1, x="regiao", y="valor_m2",
-        title=f"Valor m² por Região ({aggr_label})",
-        labels={"regiao": "Região", "valor_m2": "Valor m² (R$)"},
+        title=f"Top {top_n} Regiões por Valor do m² ({aggr_label})",
+        labels={"regiao": "Região", "valor_m2": "Valor do m² (R$)"},
         color="valor_m2",
-        color_continuous_scale=px.colors.sequential.Viridis
+        color_continuous_scale=px.colors.sequential.Viridis,
     )
     fig1.update_layout(xaxis_tickangle=-45)
     st.plotly_chart(fig1, use_container_width=True)
     
-    col_a, col_b = st.columns(2)
+    st.subheader(f"2. Quantidade de Transações por Região — Top {top_n}")
+    g2 = (
+        dff.groupby("regiao")
+        .size()
+        .reset_index(name="qtd_transacoes")
+        .sort_values("qtd_transacoes", ascending=False)
+        .head(top_n)
+    )
+    fig2 = px.bar(
+        g2, x="regiao", y="qtd_transacoes",
+        title=f"Transações por Região (Top {top_n})",
+        labels={"regiao": "Região", "qtd_transacoes": "Quantidade de Transações"},
+        color="qtd_transacoes",
+        color_continuous_scale=px.colors.sequential.Blues,
+    )
+    fig2.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig2, use_container_width=True)
     
-    with col_a:
-        st.subheader(f"Top {top_n} por Quantidade")
-        g2 = (
-            dff.groupby("regiao")
-            .size()
-            .reset_index(name="qtd")
-            .sort_values("qtd", ascending=False)
-            .head(top_n)
-        )
-        fig2 = px.bar(
-            g2, x="regiao", y="qtd",
-            labels={"regiao": "Região", "qtd": "Transações"},
-            color="qtd",
-            color_continuous_scale=px.colors.sequential.Blues
-        )
-        fig2.update_layout(xaxis_tickangle=-45, showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
+    st.subheader(f"3. Valor da Transação por Padrão de Acabamento ({aggr_label})")
+    g3 = (
+        dff.groupby("padrao_acabamento")["valor_avaliacao"]
+        .agg(aggr_func)
+        .reset_index()
+    )
+    cat_order = ["Simples", "Médio", "Superior"]
+    g3["padrao_acabamento"] = pd.Categorical(g3["padrao_acabamento"], categories=cat_order, ordered=True)
+    g3 = g3.sort_values("padrao_acabamento")
+    fig3 = px.bar(
+        g3, x="padrao_acabamento", y="valor_avaliacao",
+        title=f"Valor da Transação por Padrão de Acabamento ({aggr_label})",
+        labels={"padrao_acabamento": "Padrão de Acabamento", "valor_avaliacao": "Valor da Transação (R$)"},
+        color="valor_avaliacao",
+        color_continuous_scale=px.colors.sequential.Plasma,
+    )
+    st.plotly_chart(fig3, use_container_width=True)
     
-    with col_b:
-        st.subheader("Distribuição por Padrão")
-        g3 = (
-            dff.groupby("padrao_acabamento")["valor_avaliacao"]
-            .agg(aggr_func)
-            .reset_index()
+    st.subheader(f"4. Evolução do Valor do m² por Ano ({aggr_label})")
+    g4 = (
+        dff.groupby(dff["data_transacao"].dt.year)["valor_m2"]
+        .agg(aggr_func)
+        .reset_index()
+    )
+    g4.columns = ["ano", "valor_m2"]
+    fig4 = px.line(
+        g4, x="ano", y="valor_m2",
+        title=f"Evolução do Valor do m² ({aggr_label})",
+        labels={"ano": "Ano", "valor_m2": "Valor do m² (R$)"},
+        markers=True,
+    )
+    fig4.update_xaxes(type="category")
+    st.plotly_chart(fig4, use_container_width=True)
+    
+    st.subheader("5. Distribuição de Tipos de Imóveis (Residencial)")
+    g5 = (
+        dff.groupby("tipo_imovel")
+           .size()
+           .reset_index(name="count")
+           .sort_values("count", ascending=False)
+    )
+    fig5 = px.pie(
+        g5,
+        values="count",
+        names="tipo_imovel",
+        hole=0.3,
+        title="Distribuição por Tipo"
+    )
+    st.plotly_chart(fig5, use_container_width=True)
+    
+    st.subheader("6. Dispersão Valor vs Área (Scatter)")
+    with st.expander("Ver Dispersão Valor vs Área (R$ x m²)"):
+        fig6 = px.scatter(
+            dff, x="area_construida", y="valor_avaliacao",
+            color="tipo_imovel",
+            hover_data=["regiao", "bairro"],
+            labels={"area_construida": "Área construída (m²)", "valor_avaliacao": "Valor da Transação (R$)"},
+            title="Dispersão Valor x Área",
+            opacity=0.6,
         )
-        fig3 = px.bar(
-            g3, x="padrao_acabamento", y="valor_avaliacao",
-            labels={"padrao_acabamento": "Padrão", "valor_avaliacao": "Valor"},
-            color="valor_avaliacao",
-            color_continuous_scale=px.colors.sequential.Plasma
-        )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig6, use_container_width=True)
+    
+    st.divider()
+    
+    # Tabela e download dos dados filtrados
+    with st.expander("Ver dados filtrados"):
+        st.dataframe(dff.sort_values("data_transacao", ascending=False), use_container_width=True, hide_index=True)
+    
+    csv = dff.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Baixar CSV (filtro atual)", data=csv, file_name="itbi_residencial_filtrado.csv", mime="text/csv")
 
 # ==================== TAB 4: ANÁLISE INTEGRADA ====================
 
@@ -358,11 +546,8 @@ with tab4:
     
     with st.sidebar:
         st.subheader("🔥 Filtros - Integrado")
-        min_tx_integrated = st.number_input(
-            "Mínimo tx/região (integrado)",
-            min_value=50, max_value=2000, value=200, step=50,
-            key="integrated_min_tx"
-        )
+        min_tx_integrated = 200  # Fixado em 200 transações por região
+        st.info(f"Mínimo de transações por região: **{min_tx_integrated}** (fixo)")
     
     with st.spinner("Carregando dados integrados..."):
         df_int, regions_dict_int, silh_int, feat_int = get_integrated_data(int(min_tx_integrated))
