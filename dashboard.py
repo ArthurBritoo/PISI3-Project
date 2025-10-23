@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 from data_processing import load_and_preprocess_data
-from geo_clustering import build_regions_for_recife  # <- novo
+from geo_clustering import build_regions_for_recife
 
 st.set_page_config(page_title="Dashboard ITBI Recife - Residencial", layout="wide")
 
@@ -14,9 +14,24 @@ def get_data():
     data_dir = os.path.join(base_dir, "data")
     return load_and_preprocess_data(data_dir=data_dir)
 
-# Cache para construção das regiões (evita chamar a API do IBGE a cada interação)
+def _malha_mtime() -> float:
+    base_dir = os.path.dirname(__file__)
+    candidates = [
+        os.path.join(base_dir, "data", "geodata", "recife_bairros.geojson"),
+        os.path.join(base_dir, "data", "recife_bairros.geojson"),
+        os.path.join(base_dir, "data", "geodata", "recife_bairros.json"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                return os.path.getmtime(p)
+            except Exception:
+                pass
+    return 0.0
+
+# Cache para construção das regiões (depende do mtime da malha)
 @st.cache_data(show_spinner=True)
-def build_regions_cached(df_in: pd.DataFrame, min_tx: int):
+def build_regions_cached(df_in: pd.DataFrame, min_tx: int, malha_version: float):
     df_out, regions = build_regions_for_recife(df_in, min_tx_per_region=min_tx)
     return df_out, regions
 
@@ -32,13 +47,23 @@ st.caption("Dados filtrados para imóveis residenciais (Apartamento, Casa)")
 # ---------------- Sidebar: Filtros ----------------
 st.sidebar.header("Filtros")
 
-# Controle de regiões (mínimo de transações por região) e construção das regiões
 min_tx_per_region = st.sidebar.number_input(
-    "Mínimo de transações por região (IBGE)",
+    "Mínimo de transações por região (IBGE/Bairros)",
     min_value=50, max_value=2000, value=200, step=50,
-    help="Agrupa subdistritos vizinhos até alcançar este mínimo por região."
+    help="Agrupa unidades vizinhas (bairros/subdistritos) até alcançar este mínimo por região."
 )
-df_reg, regions_dict = build_regions_cached(df, int(min_tx_per_region))
+
+# Usa mtime da malha para invalidar cache quando o arquivo mudar
+df_reg, regions_dict = build_regions_cached(df, int(min_tx_per_region), _malha_mtime())
+
+# Mostrar status da origem do agrupamento
+source = regions_dict.get("__source__", "fallback")
+if source == "bairros":
+    st.info("Agrupamento usando malha oficial de Bairros do Recife (adjacência por fronteira).")
+elif source == "ibge":
+    st.info("Agrupamento usando subdistritos IBGE (adjacência por fronteira).")
+else:
+    st.warning("Agrupamento em fallback (sem malha geográfica). Regiões não consideram vizinhança.")
 
 # Período (anos)
 anos = sorted(df_reg["data_transacao"].dt.year.dropna().unique().tolist())
@@ -53,9 +78,9 @@ tipos_sel = st.sidebar.multiselect(
 )
 
 # Filtro por Regiões (substitui filtro por bairro)
-regioes = sorted(df_reg["regiao"].dropna().unique().tolist())
+regioes = sorted([k for k in df_reg["regiao"].dropna().unique().tolist()])
 regioes_sel = st.sidebar.multiselect(
-    "Regiões (IBGE agrupadas)",
+    "Regiões (agrupadas)",
     regioes,
     default=[],
     help="Deixe vazio para considerar todas as regiões"
@@ -138,10 +163,11 @@ if dff.empty:
     st.stop()
 
 # Mostrar composição das regiões
-with st.expander("Ver composição das regiões (subdistritos IBGE)"):
+with st.expander("Ver composição das regiões"):
     reg_view = pd.DataFrame([
-        {"regiao": k, "subdistritos": ", ".join(sorted(v))}
+        {"regiao": k, "unidades": ", ".join(sorted(v))}
         for k, v in regions_dict.items()
+        if k != "__source__"
     ]).sort_values("regiao")
     st.dataframe(reg_view, use_container_width=True, hide_index=True)
 
