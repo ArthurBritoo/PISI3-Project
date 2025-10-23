@@ -161,7 +161,7 @@ with tab1:
         st.divider()
         st.subheader("📅 Filtro Temporal - Complementares")
         anos = sorted(df["data_transacao"].dt.year.dropna().unique().tolist())
-        ano_range = st.slider("Período", min(anos), max(anos), (min(anos), max(anos)))
+        ano_range = st.slider("Período", min(anos), max(anos), (min(anos), max(anos)), key="slider_eda_complementar")
     
     # Aplicar filtro temporal
     df_complementar = df[df["data_transacao"].dt.year.between(ano_range[0], ano_range[1])].copy()
@@ -211,7 +211,7 @@ with tab1:
             y="valor_avaliacao",
             color="padrao_acabamento",
             trendline="ols",
-            hover_data=["regiao", "bairro"],
+            hover_data=["bairro", "tipo_imovel"],
             title="Correlação entre área construída e valor de avaliação por padrão de acabamento",
             labels={
                 "area_construida": "Área construída (m²)",
@@ -241,21 +241,25 @@ with tab1:
     )
     st.plotly_chart(fig4, use_container_width=True)
     
-    # Gráfico 10: Relação entre Região e Padrão de Acabamento
-    st.subheader("🔟 Relação entre Região e Padrão de Acabamento")
+    # Gráfico 10: Relação entre Bairro e Padrão de Acabamento (Top 15)
+    st.subheader("🔟 Relação entre Bairro e Padrão de Acabamento")
     if "padrao_acabamento" in df_complementar.columns:
+        # Pegar top 15 bairros por volume de transações
+        top_bairros = df_complementar['bairro'].value_counts().head(15).index
+        df_top = df_complementar[df_complementar['bairro'].isin(top_bairros)]
+        
         g5 = (
-            df_complementar.groupby(["regiao", "padrao_acabamento"])
+            df_top.groupby(["bairro", "padrao_acabamento"])
             .size()
             .reset_index(name="qtd")
         )
         fig5 = px.bar(
             g5,
-            x="regiao",
+            x="bairro",
             y="qtd",
             color="padrao_acabamento",
-            title="Distribuição de padrão de acabamento por região",
-            labels={"regiao": "Região", "qtd": "Quantidade"},
+            title="Distribuição de padrão de acabamento por bairro (Top 15)",
+            labels={"bairro": "Bairro", "qtd": "Quantidade"},
         )
         fig5.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig5, use_container_width=True)
@@ -535,7 +539,7 @@ with tab3:
         
         anos = sorted(df_res["data_transacao"].dt.year.dropna().unique().tolist())
         min_ano, max_ano = (anos[0], anos[-1]) if anos else (2015, 2023)
-        ano_range = st.slider("Período", min_ano, max_ano, (min_ano, max_ano))
+        ano_range = st.slider("Período", min_ano, max_ano, (min_ano, max_ano), key="slider_regional")
         
         aggr_label = st.radio("Agregação", ["Média", "Mediana"], index=0)
         aggr_func = "mean" if aggr_label == "Média" else "median"
