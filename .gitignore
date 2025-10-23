@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+.ipynb_checkpoints/
+.vscode/
+
+# Project caches and generated files
+.data/
+.streamlit/
+charts/__pycache__/
+
+data/clustering_cache.parquet
+data/clustering_metadata.json
