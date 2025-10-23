@@ -152,6 +152,134 @@ with tab1:
     
     st.divider()
     
+    # ==================== ANÁLISES COMPLEMENTARES ====================
+    st.header("🔬 Análises Complementares")
+    st.caption("Explorando relações adicionais entre características e valores de imóveis")
+    
+    # Filtro de período para análises complementares
+    with st.sidebar:
+        st.divider()
+        st.subheader("📅 Filtro Temporal - Complementares")
+        anos = sorted(df["data_transacao"].dt.year.dropna().unique().tolist())
+        ano_range = st.slider("Período", min(anos), max(anos), (min(anos), max(anos)))
+    
+    # Aplicar filtro temporal
+    df_complementar = df[df["data_transacao"].dt.year.between(ano_range[0], ano_range[1])].copy()
+    # Filtrar apenas residenciais para análises complementares
+    df_complementar = df_complementar[df_complementar["tipo_imovel"].isin(["Apartamento", "Casa"])]
+    
+    # Gráfico 6: Relação entre Ano de Construção e Valor do m²
+    st.subheader("6️⃣ Relação entre Ano de Construção e Valor do m²")
+    if "ano_construcao" in df_complementar.columns:
+        g1 = (
+            df_complementar.groupby("ano_construcao")["valor_m2"]
+            .median()
+            .reset_index()
+            .dropna()
+            .sort_values("ano_construcao")
+        )
+        fig1 = px.line(
+            g1,
+            x="ano_construcao",
+            y="valor_m2",
+            markers=True,
+            title="Valor mediano do m² por ano de construção",
+            labels={"ano_construcao": "Ano de construção", "valor_m2": "Valor do m² (R$)"},
+        )
+        st.plotly_chart(fig1, use_container_width=True)
+    else:
+        st.info("Dados de ano de construção não disponíveis.")
+    
+    # Gráfico 7: Distribuição de Valores por Tipo de Imóvel
+    st.subheader("7️⃣ Distribuição de Valores por Tipo de Imóvel")
+    fig2 = px.box(
+        df_complementar,
+        x="tipo_imovel",
+        y="valor_m2",
+        color="tipo_imovel",
+        title="Distribuição do valor do m² por tipo de imóvel",
+        labels={"tipo_imovel": "Tipo de imóvel", "valor_m2": "Valor do m² (R$)"},
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # Gráfico 8: Correlação entre Área e Valor por Padrão de Acabamento
+    st.subheader("8️⃣ Correlação entre Área e Valor por Padrão de Acabamento")
+    if "padrao_acabamento" in df_complementar.columns:
+        fig3 = px.scatter(
+            df_complementar.sample(min(5000, len(df_complementar))),  # Sample para performance
+            x="area_construida",
+            y="valor_avaliacao",
+            color="padrao_acabamento",
+            trendline="ols",
+            hover_data=["regiao", "bairro"],
+            title="Correlação entre área construída e valor de avaliação por padrão de acabamento",
+            labels={
+                "area_construida": "Área construída (m²)",
+                "valor_avaliacao": "Valor de avaliação (R$)",
+                "padrao_acabamento": "Padrão de acabamento",
+            },
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.info("Dados de padrão de acabamento não disponíveis.")
+    
+    # Gráfico 9: Evolução da Quantidade de Transações ao Longo do Tempo
+    st.subheader("9️⃣ Evolução da Quantidade de Transações ao Longo do Tempo")
+    g4 = (
+        df_complementar.groupby(df_complementar["data_transacao"].dt.to_period("Y"))
+        .size()
+        .reset_index(name="qtd_transacoes")
+    )
+    g4["data_transacao"] = g4["data_transacao"].astype(str)
+    
+    fig4 = px.bar(
+        g4,
+        x="data_transacao",
+        y="qtd_transacoes",
+        title="Quantidade de transações por ano",
+        labels={"data_transacao": "Ano", "qtd_transacoes": "Quantidade de transações"},
+    )
+    st.plotly_chart(fig4, use_container_width=True)
+    
+    # Gráfico 10: Relação entre Região e Padrão de Acabamento
+    st.subheader("🔟 Relação entre Região e Padrão de Acabamento")
+    if "padrao_acabamento" in df_complementar.columns:
+        g5 = (
+            df_complementar.groupby(["regiao", "padrao_acabamento"])
+            .size()
+            .reset_index(name="qtd")
+        )
+        fig5 = px.bar(
+            g5,
+            x="regiao",
+            y="qtd",
+            color="padrao_acabamento",
+            title="Distribuição de padrão de acabamento por região",
+            labels={"regiao": "Região", "qtd": "Quantidade"},
+        )
+        fig5.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig5, use_container_width=True)
+    else:
+        st.info("Não há dados de padrão de acabamento para essa análise.")
+    
+    # Gráfico 11: Imóveis Mais Caros por Bairro
+    st.subheader("1️⃣1️⃣ Imóveis Mais Caros por Bairro")
+    most_expensive = df_complementar.groupby('bairro')['valor_avaliacao'].max().reset_index()
+    most_expensive = most_expensive.sort_values('valor_avaliacao', ascending=True).tail(30)  # Top 30
+    
+    fig6 = px.bar(
+        most_expensive,
+        x='valor_avaliacao',
+        y='bairro',
+        orientation='h',
+        title='Top 30 - Imóveis Mais Caros por Bairro',
+        labels={'valor_avaliacao': 'Valor da Propriedade (R$)', 'bairro': 'Bairro'}
+    )
+    fig6.update_layout(height=800, xaxis_tickformat=",.0f")
+    st.plotly_chart(fig6, use_container_width=True)
+    
+    st.divider()
+    
     # Download de dados da EDA
     with st.expander("📥 Exportar dados para análise"):
         st.markdown("**Dados completos do ITBI Recife:**")
@@ -160,6 +288,15 @@ with tab1:
             "Baixar dados completos (CSV)",
             data=csv_eda,
             file_name="itbi_recife_completo.csv",
+            mime="text/csv"
+        )
+        
+        st.markdown("**Dados filtrados (análises complementares):**")
+        csv_complementar = df_complementar.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Baixar dados filtrados (CSV)",
+            data=csv_complementar,
+            file_name="itbi_residencial_analises_complementares.csv",
             mime="text/csv"
         )
         
