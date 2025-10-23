@@ -390,8 +390,11 @@ with tab3:
     with st.sidebar:
         st.subheader("🗺️ Filtros - Regional")
         
-        min_tx_per_region = 200  # Fixado em 200 transações por região
-        st.info(f"Mínimo de transações por região: **{min_tx_per_region}** (fixo)")
+        min_tx_per_region = st.number_input(
+            "Mínimo tx/região",
+            min_value=50, max_value=5000, value=2000, step=50,
+            help="Agrupa subdistritos vizinhos até atingir este mínimo de transações"
+        )
         
         anos = sorted(df_res["data_transacao"].dt.year.dropna().unique().tolist())
         min_ano, max_ano = (anos[0], anos[-1]) if anos else (2015, 2023)
@@ -546,8 +549,12 @@ with tab4:
     
     with st.sidebar:
         st.subheader("🔥 Filtros - Integrado")
-        min_tx_integrated = 200  # Fixado em 200 transações por região
-        st.info(f"Mínimo de transações por região: **{min_tx_integrated}** (fixo)")
+        min_tx_integrated = st.number_input(
+            "Mínimo tx/região (integrado)",
+            min_value=50, max_value=5000, value=2000, step=50,
+            key="integrated_min_tx",
+            help="Agrupa subdistritos vizinhos até atingir este mínimo de transações"
+        )
     
     with st.spinner("Carregando dados integrados..."):
         df_int, regions_dict_int, silh_int, feat_int = get_integrated_data(int(min_tx_integrated))
