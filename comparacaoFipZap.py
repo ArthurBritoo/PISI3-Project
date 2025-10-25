@@ -55,7 +55,18 @@ for bairro, media_fipe in fipezap.items():
 # Criar DataFrame final
 df_comparacao = pd.DataFrame(resultado)
 
+# -------------------------
+# Cálculo do fator de correção usando média de Recife do FipeZap
+# -------------------------
+media_recife_fipezap = 8404  # média geral de Recife
+media_dataset_geral = df['preco_m2'].mean()
+fator_correcao = media_recife_fipezap / media_dataset_geral
+
 st.title("Comparação do preço do m² por bairro: Dataset vs FipeZap")
+st.write(f"Média geral do dataset ITBI (R$/m²): R$ {media_dataset_geral:,.2f}")
+st.write(f"Média de Recife FipeZap (R$/m²): R$ {media_recife_fipezap:,.2f}")
+st.write(f"Fator de correção aplicado: {fator_correcao:.2f}")
+
 st.dataframe(df_comparacao.style.format({
     "Média Dataset (R$/m²)": "R$ {:,.2f}",
     "Mediana Dataset (R$/m²)": "R$ {:,.2f}",
@@ -71,4 +82,16 @@ fig = px.bar(
     barmode='group',
     title="Comparação de preço médio do m²: Dataset x FipeZap"
 )
+
+df_grafico = df_comparacao.copy()
+df_grafico['Preco Corrigido pelo Fator'] = df_grafico['Média Dataset (R$/m²)'] * fator_correcao
+
+fig_corrigido_fipe = px.bar(
+    df_grafico,
+    x='Bairro',
+    y=['Preco Corrigido pelo Fator', 'Média FipeZap (R$/m²)'],
+    barmode='group',
+    title="Comparação: Preço corrigido pelo fator vs Média FipeZap"
+)
+st.plotly_chart(fig_corrigido_fipe)
 st.plotly_chart(fig)
