@@ -4,97 +4,97 @@ import numpy as np
 from scipy.stats import t, norm
 import altair as alt # Importar Altair para visualizações
 
-st.set_page_config(page_title="ITBI Price Analysis", layout="wide") # Usar layout wide para mais espaço
+st.set_page_config(page_title="Análise de Preços ITBI", layout="wide") # Usar layout wide para mais espaço
 
-st.title("Confidence Interval for Price per m² • Boa Viajem ITBI")
+st.title("Intervalo de Confiança para Preço por m² • ITBI Boa Viagem")
 
-# Function to load data from a Parquet file with caching
+# Função para carregar dados de um arquivo Parquet com cache
 @st.cache_data
 def load_data():
     """
-    Loads ITBI data from a Parquet file.
-    Caches the data to avoid reloading on every rerun.
+    Carrega dados ITBI de um arquivo Parquet.
+    Armazena os dados em cache para evitar recarregamento a cada execução.
     """
     try:
         df = pd.read_parquet("PISI3-Project/data/itbi_2023.parquet")
         return df
     except FileNotFoundError:
-        st.error("Error: 'itbi_2023.parquet' not found. Please ensure the data file is in 'PISI3-Project/data/'.")
+        st.error("Erro: Arquivo 'itbi_2023.parquet' não encontrado. Certifique-se de que o arquivo de dados esteja em 'PISI3-Project/data/'.")
         return None
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading the file: {e}")
+        st.error(f"Ocorreu um erro inesperado ao carregar o arquivo: {e}")
         return None
 
 df = load_data()
 
 if df is not None:
-    # --- Initial Data Cleaning and Type Conversion ---
+    # --- Limpeza Inicial de Dados e Conversão de Tipo ---
     required_columns = ['valor_avaliacao', 'area_construida', 'area_terreno', 'tipo_imovel', 'bairro']
     if not all(col in df.columns for col in required_columns):
         st.error(f"Erro: Colunas essenciais faltando no dataset. Esperadas: {required_columns}")
         st.stop()
 
-    # Convert columns to numeric, coercing errors to NaN
+    # Converter colunas para numérico, convertendo erros para NaN
     df['valor_avaliacao'] = pd.to_numeric(df['valor_avaliacao'], errors='coerce')
     df['area_construida'] = pd.to_numeric(df['area_construida'], errors='coerce')
     df['area_terreno'] = pd.to_numeric(df['area_terreno'], errors='coerce')
 
-    # Remove rows where essential numeric columns are NaN after conversion
+    # Remover linhas onde colunas numéricas essenciais são NaN após a conversão
     df.dropna(subset=['valor_avaliacao', 'area_construida', 'area_terreno'], inplace=True)
 
-    # --- NEW CHECK: Stop if DataFrame is empty after initial dropna ---
+    # --- NOVA VERIFICAÇÃO: Parar se o DataFrame estiver vazio após o dropna inicial ---
     if df.empty:
         st.error("Erro: Nenhum dado válido restante após a limpeza inicial de valores ausentes/inválidos nas colunas essenciais (valor_avaliacao, area_construida, area_terreno). Por favor, verifique seus dados.")
         st.stop()
 
-    # --- Neighborhood Filter (Applies to the entire DataFrame early on) ---
-    st.sidebar.header("Global Filters")
+    # --- Filtro de Bairro (Aplicado a todo o DataFrame no início) ---
+    st.sidebar.header("Filtros Globais")
     all_bairros = df['bairro'].unique().tolist()
     selected_bairros = st.sidebar.multiselect(
-        "Select Neighborhood(s)",
+        "Selecionar Bairro(s)",
         options=all_bairros,
-        default=all_bairros # Select all by default
+        default=all_bairros # Selecionar todos por padrão
     )
 
     if not selected_bairros:
-        st.warning("Please select at least one neighborhood for analysis.")
+        st.warning("Por favor, selecione pelo menos um bairro para análise.")
         st.stop()
 
-    df = df[df['bairro'].isin(selected_bairros)].copy() # Apply neighborhood filter to the main df
+    df = df[df['bairro'].isin(selected_bairros)].copy() # Aplicar filtro de bairro ao df principal
 
     if df.empty:
-        st.warning("No data remaining after applying neighborhood filter. Please adjust your selections.")
+        st.warning("Nenhum dado restante após aplicar o filtro de bairro. Por favor, ajuste suas seleções.")
         st.stop()
 
-    # --- Categorize Property Types ---
-    df['tipo_agrupado'] = 'Outros' # Default category
+    # --- Categorizar Tipos de Propriedade ---
+    df['tipo_agrupado'] = 'Outros' # Categoria padrão
 
-    # Classify 'Terrenos' first based on area criteria
-    # Ensure area_terreno is not zero to avoid division by zero in the ratio
+    # Classificar 'Terrenos' primeiro com base nos critérios de área
+    # Garantir que area_terreno não seja zero para evitar divisão por zero na razão
     is_terrain_by_area = (
         (df['area_construida'] <= 10) |
         ((df['area_terreno'] > 0) & (df['area_construida'] / df['area_terreno'] <= 0.05))
     )
     df.loc[is_terrain_by_area, 'tipo_agrupado'] = 'Terreno'
 
-    # Classify 'Apartamento' and 'Casa'
+    # Classificar 'Apartamento' e 'Casa'
     df.loc[df['tipo_imovel'] == 'Apartamento', 'tipo_agrupado'] = 'Apartamento'
     df.loc[df['tipo_imovel'] == 'Casa', 'tipo_agrupado'] = 'Casa'
 
-    # --- Calculate 'value_m2' based on grouped type ---
-    df['value_m2'] = np.nan # Initialize with NaN
+    # --- Calcular 'value_m2' com base no tipo agrupado ---
+    df['value_m2'] = np.nan # Inicializar com NaN
 
-    # Mask for valid 'Apartamento' based on area_construida limits
+    # Máscara para 'Apartamento' válido com base nos limites de area_construida
     valid_apartment_area_mask = (
         (df['tipo_agrupado'] == 'Apartamento') &
         (df['area_construida'] >= 25) &
         (df['area_construida'] <= 350)
     )
 
-    # Mask for 'Casa' (no specific area_construida limits yet)
+    # Máscara para 'Casa' (sem limites específicos de area_construida ainda)
     valid_casa_mask = (df['tipo_agrupado'] == 'Casa')
 
-    # Combine masks for residential calculation
+    # Combinar máscaras para cálculo residencial
     residential_mask = (
         (valid_apartment_area_mask | valid_casa_mask) &
         (df['area_construida'] > 0) &
@@ -102,7 +102,7 @@ if df is not None:
     )
     df.loc[residential_mask, 'value_m2'] = df['valor_avaliacao'] / df['area_construida']
 
-    # For Terrenos: valor_avaliacao / area_terreno
+    # Para Terrenos: valor_avaliacao / area_terreno
     terrain_mask = (
         (df['tipo_agrupado'] == 'Terreno') &
         (df['area_terreno'] > 0) &
@@ -112,29 +112,29 @@ if df is not None:
     
     st.success("Imóveis categorizados e 'value_m2' calculado por tipo, com filtragem de área para apartamentos.")
 
-    st.subheader("Raw Data Preview (with new columns)")
+    st.subheader("Pré-visualização de Dados Brutos (com novas colunas)")
     st.write(df.head())
     st.write(f"Contagem por tipo agrupado: {df['tipo_agrupado'].value_counts().to_dict()}")
 
     st.divider()
 
-    # --- Streamlit UI for Filtering and Analysis ---
-    st.sidebar.header("Property Type Options") # Renamed for clarity
+    # --- UI do Streamlit para Filtragem e Análise ---
+    st.sidebar.header("Opções de Análise por Tipo de Imóvel") # Renomeado para clareza
     selected_type = st.sidebar.selectbox(
-        "Select Property Type for Analysis",
+        "Selecionar Tipo de Imóvel para Análise",
         ('Todos', 'Apartamento', 'Casa', 'Terreno'),
         index=0
     )
 
-    # Filter data based on selected type for further analysis
+    # Filtrar dados com base no tipo selecionado para análise posterior
     if selected_type != 'Todos':
         df_filtered_by_type = df[df['tipo_agrupado'] == selected_type].copy()
     else:
         df_filtered_by_type = df[df['tipo_agrupado'].isin(['Apartamento', 'Casa', 'Terreno'])].copy()
 
-    # --- Scatter Plot: Built Area vs. Total Price ---
-    # Prepare data for scatter plot: ensure area_construida and valor_avaliacao are valid and positive
-    # Now, also apply apartment-specific area filters if 'Apartamento' is selected
+    # --- Scatter Plot: Área Construída vs. Preço Total ---
+    # Preparar dados para o scatter plot: garantir que area_construida e valor_avaliacao sejam válidos e positivos
+    # Agora, também aplicar filtros de área específicos para apartamentos se 'Apartamento' for selecionado
     df_plot_scatter = df_filtered_by_type.copy()
     
     if selected_type == 'Apartamento':
@@ -150,58 +150,58 @@ if df is not None:
     ]
 
     if not df_plot_scatter.empty:
-        st.subheader(f"Scatter Plot: Built Area vs. Total Price for {selected_type}s in {', '.join(selected_bairros)}")
+        st.subheader(f"Gráfico de Dispersão: Área Construída vs. Preço Total para {selected_type}s em {', '.join(selected_bairros)}")
         scatter_chart = alt.Chart(df_plot_scatter).mark_point().encode(
-            x=alt.X('area_construida', title='Built Area (m²)'),
-            y=alt.Y('valor_avaliacao', title='Total Price (R$)'),
-            tooltip=['tipo_imovel', 'bairro', 'area_construida', 'valor_avaliacao', 'value_m2'] # Added value_m2 to tooltip
+            x=alt.X('area_construida', title='Área Construída (m²)'),
+            y=alt.Y('valor_avaliacao', title='Preço Total (R$)'),
+            tooltip=['tipo_imovel', 'bairro', 'area_construida', 'valor_avaliacao', 'value_m2'] # Adicionado value_m2 ao tooltip
         ).properties(
-            title=f"Built Area vs. Total Price for {selected_type}s in {', '.join(selected_bairros)}"
-        ).interactive() # Make chart interactive for zooming/panning
+            title=f"Área Construída vs. Preço Total para {selected_type}s em {', '.join(selected_bairros)}"
+        ).interactive() # Tornar gráfico interativo para zoom/pan
         st.altair_chart(scatter_chart, use_container_width=True)
         st.divider()
     else:
-        st.info(f"No valid data for scatter plot (Built Area vs. Total Price) for {selected_type}s in {', '.join(selected_bairros)} after initial cleaning.")
+        st.info(f"Nenhum dado válido para o gráfico de dispersão (Área Construída vs. Preço Total) para {selected_type}s em {', '.join(selected_bairros)} após a limpeza inicial.")
     
-    # Clean data for value_m2 analysis (this part remains as is, acting on the value_m2 column)
+    # Limpar dados para análise de value_m2 (esta parte permanece como está, agindo na coluna value_m2)
     data_for_analysis = df_filtered_by_type['value_m2'].replace([np.inf, -np.inf], np.nan).dropna()
     data_for_analysis = data_for_analysis[data_for_analysis > 0]
 
-    if data_for_analysis.empty and selected_type != 'Todos': # Check for empty data *after* type selection
-        st.warning(f"No valid data points for '{selected_type}' in {', '.join(selected_bairros)} after initial cleaning. Cannot proceed with analysis.")
+    if data_for_analysis.empty and selected_type != 'Todos': # Verificar se os dados estão vazios *após* a seleção de tipo
+        st.warning(f"Nenhum dado válido para '{selected_type}' em {', '.join(selected_bairros)} após a limpeza inicial. Não é possível prosseguir com a análise.")
         st.stop()
     elif data_for_analysis.empty and selected_type == 'Todos':
-        st.warning(f"No valid data points for any selected property type in {', '.join(selected_bairros)} after initial cleaning. Cannot proceed with analysis.")
+        st.warning(f"Nenhum dado válido para nenhum tipo de propriedade selecionado em {', '.join(selected_bairros)} após a limpeza inicial. Não é possível prosseguir com a análise.")
         st.stop()
 
 
-    # --- New Section: Area Built Analysis for Apartments (only if 'Apartamento' is selected) ---
+    # --- Nova Seção: Análise de Área Construída para Apartamentos (somente se 'Apartamento' for selecionado) ---
     if selected_type == 'Apartamento':
-        st.subheader(f"Apartment Built Area Analysis (Before Price/m² Filtering) in {', '.join(selected_bairros)}")
-        # Filter original df for apartments before value_m2 calculation, but after initial area limits
+        st.subheader(f"Análise de Área Construída de Apartamentos (Antes da Filtragem de Preço/m²) em {', '.join(selected_bairros)}")
+        # Filtrar df original para apartamentos antes do cálculo de value_m2, mas após os limites de área iniciais
         apartment_area = df[
             (df['tipo_agrupado'] == 'Apartamento') & 
             (df['area_construida'] >= 25) & 
             (df['area_construida'] <= 350)
         ]['area_construida'].copy()
         
-        apartment_area = apartment_area.dropna()[apartment_area > 0] # Clean area data
+        apartment_area = apartment_area.dropna()[apartment_area > 0] # Limpar dados de área
 
         if not apartment_area.empty:
-            st.write("Summary Statistics for Apartment Built Area (m²):")
+            st.write("Estatísticas Descritivas para Área Construída de Apartamentos (m²):")
             st.write(apartment_area.describe())
 
-            # Histogram of Built Area for Apartments
+            # Histograma da Área Construída para Apartamentos
             chart_area = alt.Chart(pd.DataFrame({'area_construida': apartment_area})).mark_bar().encode(
-                alt.X('area_construida', bin=alt.Bin(maxbins=50), title="Built Area (m²)"),
-                alt.Y('count()', title="Number of Apartments")
-            ).properties(title=f"Histogram of Apartment Built Area (After initial filtering) in {', '.join(selected_bairros)}")
+                alt.X('area_construida', bin=alt.Bin(maxbins=50), title="Área Construída (m²)"),
+                alt.Y('count()', title="Número de Apartamentos")
+            ).properties(title=f"Histograma da Área Construída de Apartamentos (Após filtragem inicial) em {', '.join(selected_bairros)}")
             st.altair_chart(chart_area, use_container_width=True)
         else:
-            st.info(f"No valid built area data found for apartments after initial area-based cleaning in {', '.join(selected_bairros)}.")
+            st.info(f"Nenhum dado válido de área construída encontrado para apartamentos após a limpeza inicial baseada em área em {', '.join(selected_bairros)}.")
         st.divider()
 
-    # Define default filter ranges based on selected type
+    # Definir faixas de filtro padrão com base no tipo selecionado
     if selected_type == 'Apartamento':
         default_min, default_max = 2500.0, 12000.0
     elif selected_type == 'Casa':
@@ -211,33 +211,33 @@ if df is not None:
     else: # Todos
         default_min, default_max = float(data_for_analysis.min()), float(data_for_analysis.max())
 
-    st.subheader(f"Data Cleaning and Filtering for {selected_type}s in {', '.join(selected_bairros)}")
+    st.subheader(f"Limpeza e Filtragem de Dados para {selected_type}s em {', '.join(selected_bairros)}")
 
-    # --- Visualization of 'value_m2' distribution ---
-    st.subheader(f"Distribution of Price per m² for {selected_type}s in {', '.join(selected_bairros)}")
+    # --- Visualização da distribuição de 'value_m2' ---
+    st.subheader(f"Distribuição de Preço por m² para {selected_type}s em {', '.join(selected_bairros)}")
     chart = alt.Chart(pd.DataFrame({'value_m2': data_for_analysis})).mark_bar().encode(
-        alt.X('value_m2', bin=alt.Bin(maxbins=50), title="Price per m² (R$)"),
-        alt.Y('count()', title="Number of Properties")
-    ).properties(title=f"Histogram of Price per m² for {selected_type}s (Before Custom Filtering) in {', '.join(selected_bairros)}")
+        alt.X('value_m2', bin=alt.Bin(maxbins=50), title="Preço por m² (R$)"),
+        alt.Y('count()', title="Número de Propriedades")
+    ).properties(title=f"Histograma de Preço por m² para {selected_type}s (Antes da Filtragem Personalizada) em {', '.join(selected_bairros)}")
     st.altair_chart(chart, use_container_width=True)
 
     st.markdown("--- ")
-    st.subheader("Custom Filtering")
-    st.write("You can refine the data by setting custom price ranges or adjusting outlier removal.")
+    st.subheader("Filtragem Personalizada")
+    st.write("Você pode refinar os dados definindo faixas de preço personalizadas ou ajustando a remoção de outliers.")
 
-    # Custom price range filter
-    min_price_m2 = st.sidebar.number_input("Minimum Price per m² (R$)", min_value=0.0, value=default_min, format="%.2f")
-    max_price_m2 = st.sidebar.number_input("Maximum Price per m² (R$)", min_value=0.0, value=default_max, format="%.2f")
+    # Filtro de faixa de preço personalizado
+    min_price_m2 = st.sidebar.number_input("Preço Mínimo por m² (R$)", min_value=0.0, value=default_min, format="%.2f")
+    max_price_m2 = st.sidebar.number_input("Preço Máximo por m² (R$)", min_value=0.0, value=default_max, format="%.2f")
 
     data_filtered_by_range = data_for_analysis[
         (data_for_analysis >= min_price_m2) & (data_for_analysis <= max_price_m2)
     ]
 
-    # IQR Outlier removal option (now applied *after* custom range, if any)
-    remove_outliers_iqr = st.sidebar.checkbox("Remove outliers using IQR (Interquartile Range)", value=True)
-    iqr_factor = st.sidebar.slider("IQR Factor (for IQR outlier removal)", min_value=0.5, max_value=3.0, value=1.5, step=0.1)
+    # Opção de remoção de outliers IQR (agora aplicada *após* a faixa personalizada, se houver)
+    remove_outliers_iqr = st.sidebar.checkbox("Remover outliers usando IQR (Intervalo Interquartil)", value=True)
+    iqr_factor = st.sidebar.slider("Fator IQR (para remoção de outliers IQR)", min_value=0.5, max_value=3.0, value=1.5, step=0.1)
 
-    data = data_filtered_by_range.copy() # Start with data potentially filtered by custom range
+    data = data_filtered_by_range.copy() # Começar com dados potencialmente filtrados por faixa personalizada
 
     if remove_outliers_iqr and not data.empty:
         Q1 = data.quantile(0.25)
@@ -246,58 +246,58 @@ if df is not None:
         lower_bound = Q1 - iqr_factor * IQR
         upper_bound = Q3 + iqr_factor * IQR
         data = data[(data >= lower_bound) & (data <= upper_bound)]
-        st.info(f"Outliers removed using IQR factor {iqr_factor}: Data filtered between {lower_bound:,.2f} and {upper_bound:,.2f} R$/m².")
+        st.info(f"Outliers removidos usando fator IQR {iqr_factor}: Dados filtrados entre {lower_bound:,.2f} e {upper_bound:,.2f} R$/m².")
     elif remove_outliers_iqr and data.empty:
-         st.warning("No data left to apply IQR outlier removal after custom range filtering.")
+         st.warning("Nenhum dado restante para aplicar a remoção de outliers IQR após a filtragem de faixa personalizada.")
 
     if data.empty:
-        st.warning(f"No valid data points remaining after filtering to calculate confidence interval in {', '.join(selected_bairros)}.")
+        st.warning(f"Nenhum dado válido restante após a filtragem para calcular o intervalo de confiança em {', '.join(selected_bairros)}.")
         st.stop()
 
-    # --- Statistical Calculations ---
+    # --- Cálculos Estatísticos ---
     n = len(data)
     mean = np.mean(data)
-    median = np.median(data) # Calculate median
+    median = np.median(data) # Calcular mediana
     std = np.std(data, ddof=1) 
-    se = std / np.sqrt(n) # Standard Error
+    se = std / np.sqrt(n) # Erro Padrão
 
-    st.subheader(f"Statistical Results for {selected_type}s in {', '.join(selected_bairros)} (After Filtering)")
-    st.write(f"Sample size (after cleaning and filtering): **{n}**")
-    st.write(f"Mean Price (R$/m²): **{mean:,.2f}**")
-    st.write(f"Median Price (R$/m²): **{median:,.2f}**") # Display median
-    st.write(f"Standard deviation: **{std:,.2f}**")
-    st.write(f"Standard error of the mean: **{se:,.2f}**")
+    st.subheader(f"Resultados Estatísticos para {selected_type}s em {', '.join(selected_bairros)} (Após Filtragem)")
+    st.write(f"Tamanho da amostra (após limpeza e filtragem): **{n}**")
+    st.write(f"Preço Médio (R$/m²): **{mean:,.2f}**")
+    st.write(f"Preço Mediano (R$/m²): **{median:,.2f}**") # Exibir mediana
+    st.write(f"Desvio Padrão: **{std:,.2f}**")
+    st.write(f"Erro Padrão da Média: **{se:,.2f}**")
 
-    # --- Confidence Interval Calculation ---
+    # --- Cálculo do Intervalo de Confiança ---
     confidence_level = 0.95
     alpha = 1 - confidence_level
 
-    if n >= 30: # Heuristic for using Z-distribution for large samples
-        # Z-score for a two-tailed interval
+    if n >= 30: # Heurística para usar a distribuição Z para grandes amostras
+        # Z-score para um intervalo de duas caudas
         z_critical = norm.ppf(1 - alpha / 2)
         margin_of_error = z_critical * se
-        distribution_used = "Z-distribution"
-    else: # Use Student's t-distribution for smaller samples
-        # t-value for a two-tailed interval with n-1 degrees of freedom
+        distribution_used = "Distribuição Z"
+    else: # Usar a distribuição t de Student para amostras menores
+        # Valor t para um intervalo de duas caudas com n-1 graus de liberdade
         t_critical = t.ppf(1 - alpha / 2, df=n - 1)
         margin_of_error = t_critical * se
-        distribution_used = "Student's t-distribution"
+        distribution_used = "Distribuição t de Student"
 
     lower_ci = mean - margin_of_error
     upper_ci = mean + margin_of_error
 
-    st.markdown(f"\n**{int(confidence_level*100)}% Confidence Interval ({distribution_used}) for {selected_type}s in {', '.join(selected_bairros)}**")
-    st.success(f"**{lower_ci:,.2f} R$/m²**  to  **{upper_ci:,.2f} R$/m²**")
+    st.markdown(f"\n**{int(confidence_level*100)}% Intervalo de Confiança ({distribution_used}) para {selected_type}s em {', '.join(selected_bairros)}**")
+    st.success(f"**{lower_ci:,.2f} R$/m²**  até  **{upper_ci:,.2f} R$/m²**")
 
     st.divider()
 
-    # --- COMPARISON SECTION: Fixed Filters for Boa Viagem ---
-    st.header("Comparison: Fixed Filters for Boa Viagem (Apartments)")
-    st.write("This section shows results for a predefined set of filters to offer a comparison point.")
+    # --- SEÇÃO DE COMPARAÇÃO: Filtros Fixos para Boa Viagem ---
+    st.header("Comparação: Filtros Fixos para Boa Viagem (Apartamentos)")
+    st.write("Esta seção mostra os resultados para um conjunto predefinido de filtros para oferecer um ponto de comparação.")
 
-    df_bv_comparison = df.copy() # Start with a fresh copy of the main df after initial cleaning and value_m2 calculation
+    df_bv_comparison = df.copy() # Começar com uma cópia fresca do df principal após a limpeza inicial e o cálculo de value_m2
 
-    # Apply the fixed filters
+    # Aplicar os filtros fixos
     df_bv_comparison = df_bv_comparison[
         (df_bv_comparison['bairro'] == 'BOA VIAGEM') &
         (df_bv_comparison['area_construida'] >= 60) &
@@ -307,11 +307,11 @@ if df is not None:
         (df_bv_comparison['value_m2'] <= 15000)
     ]
 
-    # Clean the 'value_m2' column for this comparison subset
+    # Limpar a coluna 'value_m2' para este subconjunto de comparação
     data_bv_comparison = df_bv_comparison['value_m2'].replace([np.inf, -np.inf], np.nan).dropna()
     data_bv_comparison = data_bv_comparison[data_bv_comparison > 0]
 
-    # Prepare formatted strings for report_content to avoid SyntaxError
+    # Preparar strings formatadas para report_content para evitar SyntaxError
     n_bv_str = str(len(data_bv_comparison)) if not data_bv_comparison.empty else 'N/A'
     mean_bv_str = f"{np.mean(data_bv_comparison):,.2f}" if not data_bv_comparison.empty else 'N/A'
     median_bv_str = f"{np.median(data_bv_comparison):,.2f}" if not data_bv_comparison.empty else 'N/A'
@@ -329,68 +329,56 @@ if df is not None:
         std_bv = np.std(data_bv_comparison, ddof=1)
         se_bv = std_bv / np.sqrt(n_bv)
 
-        st.write(f"Filtered Data Points: **{n_bv}**")
-        st.write(f"Mean Price (R$/m²): **{mean_bv:,.2f}**")
-        st.write(f"Median Price (R$/m²): **{median_bv:,.2f}**")
-        st.write(f"Standard deviation: **{std_bv:,.2f}**")
-        st.write(f"Standard error: **{se_bv:,.2f}**")
-
-        # Confidence Interval Calculation for comparison data
-        confidence_level = 0.95 # Ensure confidence_level is defined for this section
-        alpha = 1 - confidence_level
-
-        if n_bv >= 30:
-            z_critical_bv = norm.ppf((1 + confidence_level) / 2)
-            margin_of_error_bv = z_critical_bv * se_bv
-            dist_used_bv = "Z-distribution"
-        else:
-            t_critical_bv = t.ppf((1 + confidence_level) / 2, df=n_bv - 1)
-            margin_of_error_bv = t_critical_bv * se_bv
-            dist_used_bv = "Student's t-distribution"
-
-        lower_ci_bv = mean_bv - margin_of_error_bv
-        upper_ci_bv = mean_bv + margin_of_error_bv
+        lower_ci_bv = mean_bv - (norm.ppf((1 + confidence_level) / 2) * se_bv if n_bv >= 30 else t.ppf((1 + confidence_level) / 2, df=n_bv - 1) * se_bv)
+        upper_ci_bv = mean_bv + (norm.ppf((1 + confidence_level) / 2) * se_bv if n_bv >= 30 else t.ppf((1 + confidence_level) / 2, df=n_bv - 1) * se_bv)
+        dist_used_bv = "Distribuição Z" if n_bv >= 30 else "Distribuição t de Student"
 
         lower_ci_bv_str = f"{lower_ci_bv:,.2f}"
         upper_ci_bv_str = f"{upper_ci_bv:,.2f}"
         dist_used_bv_str = dist_used_bv
 
-        st.markdown(f"\n**{int(confidence_level*100)}% Confidence Interval ({dist_used_bv})**")
-        st.success(f"**{lower_ci_bv:,.2f} R$/m²**  to  **{upper_ci_bv:,.2f} R$/m²**")
+        st.write(f"Pontos de Dados Filtrados: **{n_bv}**")
+        st.write(f"Preço Médio (R$/m²): **{mean_bv:,.2f}**")
+        st.write(f"Preço Mediano (R$/m²): **{median_bv:,.2f}**")
+        st.write(f"Desvio Padrão: **{std_bv:,.2f}**")
+        st.write(f"Erro Padrão: **{se_bv:,.2f}**")
+
+        st.markdown(f"\n**{int(confidence_level*100)}% Intervalo de Confiança ({dist_used_bv})**")
+        st.success(f"**{lower_ci_bv:,.2f} R$/m²**  até  **{upper_ci_bv:,.2f} R$/m²**")
     else:
-        st.warning("No data points remaining for the fixed Boa Viagem comparison filters.")
+        st.warning("Nenhum dado restante para os filtros fixos de comparação de Boa Viagem.")
 
     st.divider()
 
-    # --- Report Download ---
+    # --- Download do Relatório ---
     report_content = (
-        f"Confidence Interval Report for Price per m² ({selected_type}s in {', '.join(selected_bairros)})\n"
+        f"Relatório de Intervalo de Confiança para Preço por m² ({selected_type}s em {', '.join(selected_bairros)})\n"
         f"---------------------------------------------\n"
-        f"Sample size (after cleaning and filtering): {n}\n"
-        f"Mean Price (R$/m²): **{mean:,.2f}**\n"
-        f"Median Price (R$/m²): **{median:,.2f}**\n"
-        f"Standard deviation: **{std:,.2f}**\n"
-        f"Standard error of the mean: {se:,.2f}\n"
-        f"{int(confidence_level*100)}% Confidence Interval: {lower_ci:,.2f} to {upper_ci:,.2f} R$/m²\n"
-        f"Distribution used: {distribution_used}\n"
-        f"Outliers removed (IQR factor {iqr_factor}): {'Yes' if remove_outliers_iqr else 'No'}\n"
-        f"Custom price range applied: {min_price_m2:,.2f} to {max_price_m2:,.2f} R$/m²\n"
-        f"Neighborhoods: {', '.join(selected_bairros)}\n"
-        f"\n--- Comparison Section (Fixed Filters for Boa Viagem) ---\n"
-        f"Filtered Data Points: {n_bv_str}\n"
-        f"Mean Price (R$/m²): {mean_bv_str}\n"
-        f"Median Price (R$/m²): {median_bv_str}\n"
-        f"Standard deviation: {std_bv_str}\n"
-        f"Standard error: {se_bv_str}\n"
-        f"{int(confidence_level*100)}% Confidence Interval: {lower_ci_bv_str} to {upper_ci_bv_str} R$/m²\n"
-        f"Distribution used: {dist_used_bv_str}\n"
+        f"Tamanho da amostra (após limpeza e filtragem): {n}\n"
+        f"Preço Médio (R$/m²): {mean:,.2f}\n"
+        f"Preço Mediano (R$/m²): {median:,.2f}\n"
+        f"Desvio Padrão: {std:,.2f}\n"
+        f"Erro Padrão da Média: {se:,.2f}\n"
+        f"{int(confidence_level*100)}% Intervalo de Confiança: {lower_ci:,.2f} até {upper_ci:,.2f} R$/m²\n"
+        f"Distribuição utilizada: {distribution_used}\n"
+        f"Outliers removidos (Fator IQR {iqr_factor}): {'Sim' if remove_outliers_iqr else 'Não'}\n"
+        f"Faixa de preço personalizada aplicada: {min_price_m2:,.2f} até {max_price_m2:,.2f} R$/m²\n"
+        f"Bairros: {', '.join(selected_bairros)}\n"
+        f"\n--- Seção de Comparação (Filtros Fixos para Boa Viagem) ---\n"
+        f"Pontos de Dados Filtrados: {n_bv_str}\n"
+        f"Preço Médio (R$/m²): {mean_bv_str}\n"
+        f"Preço Mediano (R$/m²): {median_bv_str}\n"
+        f"Desvio Padrão: {std_bv_str}\n"
+        f"Erro Padrão: {se_bv_str}\n"
+        f"{int(confidence_level*100)}% Intervalo de Confiança: {lower_ci_bv_str} até {upper_ci_bv_str} R$/m²\n"
+        f"Distribuição utilizada: {dist_used_bv_str}\n"
     )
 
     st.download_button(
-        label="Download CI Report",
+        label="Baixar Relatório do IC",
         data=report_content,
-        file_name=f"m2_confidence_interval_report_{selected_type.lower()}_{'_'.join(selected_bairros)}.txt",
+        file_name=f"relatorio_intervalo_confianca_{selected_type.lower()}_{'_'.join(selected_bairros)}.txt",
         mime="text/plain"
     )
 else:
-    st.warning("Waiting to load dataset or an error occurred. Please check the console for details.")
+    st.warning("Aguardando o carregamento do dataset ou ocorreu um erro. Por favor, verifique o console para detalhes.")
