@@ -53,7 +53,7 @@ if df is not None:
     selected_bairros = st.sidebar.multiselect(
         "Selecionar Bairro(s)",
         options=all_bairros,
-        default=all_bairros # Selecionar todos por padrão
+        default=[] # Alterado de all_bairros para []
     )
 
     if not selected_bairros:
@@ -109,7 +109,7 @@ if df is not None:
         (df['valor_avaliacao'].notna())
     )
     df.loc[terrain_mask, 'value_m2'] = df['valor_avaliacao'] / df['area_terreno']
-    
+
     st.success("Imóveis categorizados e 'value_m2' calculado por tipo, com filtragem de área para apartamentos.")
 
     st.subheader("Pré-visualização de Dados Brutos (com novas colunas)")
@@ -136,7 +136,7 @@ if df is not None:
     # Preparar dados para o scatter plot: garantir que area_construida e valor_avaliacao sejam válidos e positivos
     # Agora, também aplicar filtros de área específicos para apartamentos se 'Apartamento' for selecionado
     df_plot_scatter = df_filtered_by_type.copy()
-    
+
     if selected_type == 'Apartamento':
         df_plot_scatter = df_plot_scatter[
             (df_plot_scatter['area_construida'] >= 25) &
@@ -145,7 +145,7 @@ if df is not None:
 
     df_plot_scatter = df_plot_scatter.dropna(subset=['area_construida', 'valor_avaliacao']).copy()
     df_plot_scatter = df_plot_scatter[
-        (df_plot_scatter['area_construida'] > 0) & 
+        (df_plot_scatter['area_construida'] > 0) &
         (df_plot_scatter['valor_avaliacao'] > 0)
     ]
 
@@ -162,7 +162,7 @@ if df is not None:
         st.divider()
     else:
         st.info(f"Nenhum dado válido para o gráfico de dispersão (Área Construída vs. Preço Total) para {selected_type}s em {', '.join(selected_bairros)} após a limpeza inicial.")
-    
+
     # Limpar dados para análise de value_m2 (esta parte permanece como está, agindo na coluna value_m2)
     data_for_analysis = df_filtered_by_type['value_m2'].replace([np.inf, -np.inf], np.nan).dropna()
     data_for_analysis = data_for_analysis[data_for_analysis > 0]
@@ -180,11 +180,11 @@ if df is not None:
         st.subheader(f"Análise de Área Construída de Apartamentos (Antes da Filtragem de Preço/m²) em {', '.join(selected_bairros)}")
         # Filtrar df original para apartamentos antes do cálculo de value_m2, mas após os limites de área iniciais
         apartment_area = df[
-            (df['tipo_agrupado'] == 'Apartamento') & 
-            (df['area_construida'] >= 25) & 
+            (df['tipo_agrupado'] == 'Apartamento') &
+            (df['area_construida'] >= 25) &
             (df['area_construida'] <= 350)
         ]['area_construida'].copy()
-        
+
         apartment_area = apartment_area.dropna()[apartment_area > 0] # Limpar dados de área
 
         if not apartment_area.empty:
@@ -200,6 +200,44 @@ if df is not None:
         else:
             st.info(f"Nenhum dado válido de área construída encontrado para apartamentos após a limpeza inicial baseada em área em {', '.join(selected_bairros)}.")
         st.divider()
+
+    # --- NOVO GRÁFICO: Barras Empilhadas de Preço por m² por Faixa de Área Construída (APARTAMENTOS) ---
+    if selected_type == 'Apartamento' and not df_plot_scatter.empty:
+        st.subheader(f"Gráfico de Barras Empilhadas: Preço por m² por Faixa de Área Construída para {selected_type}s em {', '.join(selected_bairros)}")
+
+        # Criar faixas para Preço por m²
+        price_m2_bins = [0, 2000, 4000, 6000, 8000, 10000, 12000, 15000, 20000, np.inf] # Ajustar conforme necessário
+        price_m2_labels = ['0-2k', '2k-4k', '4k-6k', '6k-8k', '8k-10k', '10k-12k', '12k-15k', '15k-20k', '>20k']
+        df_plot_scatter['price_m2_band'] = pd.cut(df_plot_scatter['value_m2'], bins=price_m2_bins, labels=price_m2_labels, right=False)
+
+        # Criar faixas para Área Construída
+        area_bins = [0, 50, 80, 120, 180, 250, 350, np.inf] # Ajustar conforme necessário
+        area_labels = ['<50m²', '50-80m²', '80-120m²', '120-180m²', '180-250m²', '250-350m²', '>350m²']
+        df_plot_scatter['area_band'] = pd.cut(df_plot_scatter['area_construida'], bins=area_bins, labels=area_labels, right=False)
+
+        # Garantir que as colunas de faixas sejam categóricas para ordenação
+        df_plot_scatter['price_m2_band'] = pd.Categorical(df_plot_scatter['price_m2_band'], categories=price_m2_labels, ordered=True)
+        df_plot_scatter['area_band'] = pd.Categorical(df_plot_scatter['area_band'], categories=area_labels, ordered=True)
+
+
+        stacked_bar_chart = alt.Chart(df_plot_scatter).mark_bar().encode(
+            x=alt.X('price_m2_band', title='Preço por m² (R$)', axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y('count()', title='Número de Apartamentos'),
+            color=alt.Color('area_band', title='Faixa de Área Construída', sort=area_labels), # Empilhar por faixa de área
+            tooltip=[
+                alt.Tooltip('price_m2_band', title='Faixa Preço/m²'),
+                alt.Tooltip('area_band', title='Faixa Área Const.'),
+                alt.Tooltip('count()', title='Qtd. Apartamentos')
+            ]
+        ).properties(
+            title=f"Distribuição de Apartamentos por Preço/m² e Área Construída em {', '.join(selected_bairros)}"
+        ).interactive()
+        st.altair_chart(stacked_bar_chart, use_container_width=True)
+        st.divider()
+    elif selected_type == 'Apartamento':
+        st.info(f"Nenhum dado válido para gerar o gráfico de barras empilhadas para apartamentos em {', '.join(selected_bairros)}.")
+        st.divider()
+
 
     # Definir faixas de filtro padrão com base no tipo selecionado
     if selected_type == 'Apartamento':
@@ -258,7 +296,7 @@ if df is not None:
     n = len(data)
     mean = np.mean(data)
     median = np.median(data) # Calcular mediana
-    std = np.std(data, ddof=1) 
+    std = np.std(data, ddof=1)
     se = std / np.sqrt(n) # Erro Padrão
 
     st.subheader(f"Resultados Estatísticos para {selected_type}s em {', '.join(selected_bairros)} (Após Filtragem)")
@@ -317,7 +355,7 @@ if df is not None:
     median_bv_str = f"{np.median(data_bv_comparison):,.2f}" if not data_bv_comparison.empty else 'N/A'
     std_bv_str = f"{np.std(data_bv_comparison, ddof=1):,.2f}" if not data_bv_comparison.empty else 'N/A'
     se_bv_str = f"{np.std(data_bv_comparison, ddof=1) / np.sqrt(len(data_bv_comparison)):,.2f}" if not data_bv_comparison.empty else 'N/A'
-    
+
     lower_ci_bv_str = 'N/A'
     upper_ci_bv_str = 'N/A'
     dist_used_bv_str = 'N/A'
