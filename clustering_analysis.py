@@ -7,7 +7,7 @@ from sklearn.metrics import silhouette_score
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from data_processing import load_and_preprocess_data
+from src.utils.data_processing import load_and_preprocess_data
 
 def filter_residential_data(df):
     """
