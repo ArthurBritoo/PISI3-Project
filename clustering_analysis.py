@@ -265,11 +265,19 @@ def main():
     
     return df_clustered, figures, cluster_summary
 
-def save_clustering_cache(df_clustered, silhouette_score, features, cache_dir='data'):
+def get_cache_paths():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_dir = os.path.join(script_dir, 'data') # Agora aponta para PISI3-Project/data
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
+    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
+    return cache_file, metadata_file, cache_dir
+
+def save_clustering_cache(df_clustered, silhouette_score, features):
     """
     Salva os resultados da clusterização em cache para carregamento rápido.
     """
-    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
+    cache_file, metadata_file, _ = get_cache_paths()
     
     # Salvar DataFrame com clusters
     df_clustered.to_parquet(cache_file, engine='pyarrow', compression='snappy')
@@ -283,7 +291,6 @@ def save_clustering_cache(df_clustered, silhouette_score, features, cache_dir='d
     }
     
     import json
-    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
     with open(metadata_file, 'w') as f:
         json.dump(metadata, f)
     
@@ -292,15 +299,14 @@ def save_clustering_cache(df_clustered, silhouette_score, features, cache_dir='d
     print(f"   • Metadata: {metadata_file}")
     print(f"   • Registros: {len(df_clustered):,}")
 
-def load_clustering_cache(cache_dir='data'):
+def load_clustering_cache():
     """
     Carrega os resultados da clusterização do cache se disponível.
     
     Returns:
         tuple: (df_clustered, silhouette_score, features) ou None se cache não existir
     """
-    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
-    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
+    cache_file, metadata_file, _ = get_cache_paths()
     
     if not os.path.exists(cache_file) or not os.path.exists(metadata_file):
         return None
