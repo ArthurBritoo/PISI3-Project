@@ -1,6 +1,5 @@
-
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -9,67 +8,45 @@ from sklearn.pipeline import Pipeline
 import joblib
 import plotly.figure_factory as ff
 import plotly.io as pio
+import time
 
 # Importar a função otimizada para carregar dados de clusterização
 from clustering_analysis import get_clustering_data_optimized
 
 def create_classification_target(df):
-    """
-    Cria uma variável alvo categórica a partir do 'valor_m2'.
-    """
+    # ... (código existente para criar o alvo de classificação - sem alterações)
     print("\n=== CRIANDO VARIÁVEL ALVO PARA CLASSIFICAÇÃO ===")
-    
-    # Usar quantis para criar 3 categorias com distribuição de dados semelhante
     quantiles = df['valor_m2'].quantile([0.33, 0.66]).values
-    q1 = quantiles[0]
-    q2 = quantiles[1]
-    
+    q1, q2 = quantiles[0], quantiles[1]
     print(f"Definindo categorias com base nos quantis de 'valor_m2':")
     print(f"  - Econômico: <= R$ {q1:,.2f}")
     print(f"  - Médio: > R$ {q1:,.2f} e <= R$ {q2:,.2f}")
     print(f"  - Alto Valor: > R$ {q2:,.2f}")
-
-    # Criar a coluna 'categoria_valor'
-    df['categoria_valor'] = pd.cut(df['valor_m2'],
-                                   bins=[-float('inf'), q1, q2, float('inf')],
-                                   labels=['Econômico', 'Médio', 'Alto Valor'])
-    
-    # Verificar a distribuição das classes
+    df['categoria_valor'] = pd.cut(df['valor_m2'], bins=[-float('inf'), q1, q2, float('inf')], labels=['Econômico', 'Médio', 'Alto Valor'])
     print("\nDistribuição das classes criadas:")
     print(df['categoria_valor'].value_counts(normalize=True))
-    
     return df
 
 def train_classification_model(df):
     """
-    Treina e avalia um modelo de classificação para prever a 'categoria_valor'.
+    Treina, otimiza e avalia um modelo de classificação.
     """
-    print("\n=== TREINAMENTO DO MODELO DE CLASSIFICAÇÃO ===")
+    print("\n=== OTIMIZAÇÃO E TREINAMENTO DO MODELO DE CLASSIFICAÇÃO ===")
 
-    # Definir as features (X) e o target (y)
-    # Excluímos 'valor_m2' pois a nossa variável alvo é derivada dele
-    features_to_use = [
-        'area_construida', 'area_terreno', 'ano_construcao', 'padrao_acabamento',
-        'cluster', 'bairro', 'tipo_imovel'
-    ]
-    
-    # Garantir que todas as features existem no DataFrame
+    features_to_use = ['area_construida', 'area_terreno', 'ano_construcao', 'padrao_acabamento', 'cluster', 'bairro', 'tipo_imovel']
     existing_features = [f for f in features_to_use if f in df.columns]
     X = df[existing_features]
     y = df['categoria_valor']
 
     print(f"\nFeatures selecionadas: {X.columns.tolist()}")
 
-    # Separar dados em treino e teste
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     print(f"Dados de treino: {len(X_train):,} registros")
     print(f"Dados de teste: {len(X_test):,} registros")
 
-    # Identificar colunas numéricas e categóricas para pré-processamento
     numerical_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
     categorical_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
 
-    # Criar um pré-processador usando ColumnTransformer
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numerical_features),
@@ -78,75 +55,72 @@ def train_classification_model(df):
         remainder='passthrough'
     )
 
-    # Criar o pipeline do modelo
-    # **PRÓXIMO PASSO**: Adicionar SMOTEN ao pipeline aqui, se necessário.
-    model = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        # **PRÓXIMO PASSO**: Integrar GridSearchCV ou RandomizedSearchCV aqui.
-        ('classifier', RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1))
-    ])
+    # Pipeline sem o classificador final
+    pipeline = Pipeline(steps=[('preprocessor', preprocessor), ('classifier', RandomForestClassifier(random_state=42, n_jobs=-1))])
 
-    print("\nIniciando treinamento do modelo de classificação...")
-    model.fit(X_train, y_train)
-    print("Treinamento concluído!")
+    # 2. DEFINIR GRADE DE HIPERPARÂMETROS PARA O GRIDSEARCH
+    # Nota: A grade está pequena para uma execução mais rápida.
+    # Para uma busca exaustiva, aumente o número de opções.
+    param_grid = {
+        'classifier__n_estimators': [100, 200],         # Número de árvores
+        'classifier__max_depth': [10, 20, None],       # Profundidade máxima
+        'classifier__min_samples_split': [2, 5]        # Mínimo de amostras para dividir
+    }
 
-    # Fazer previsões no conjunto de teste
-    y_pred = model.predict(X_test)
+    # 3. CONFIGURAR E EXECUTAR O GRIDSEARCHCV
+    # cv=3 significa 3-fold cross-validation
+    grid_search = GridSearchCV(pipeline, param_grid, cv=3, n_jobs=-1, verbose=2)
+    
+    print("\nIniciando otimização com GridSearchCV... (Isso pode levar alguns minutos)")
+    start_time = time.time()
+    grid_search.fit(X_train, y_train)
+    end_time = time.time()
+    print(f"Otimização concluída em { (end_time - start_time) / 60:.2f} minutos.")
 
-    # Avaliar o modelo
+    # Exibir os melhores parâmetros encontrados
+    print("\nMelhores parâmetros encontrados pelo GridSearchCV:")
+    print(grid_search.best_params_)
+
+    # O grid_search já retém o melhor modelo treinado com todos os dados de treino
+    best_model = grid_search.best_estimator_
+
+    # Fazer previsões no conjunto de teste com o modelo otimizado
+    y_pred = best_model.predict(X_test)
+
+    # Avaliar o modelo otimizado
     accuracy = accuracy_score(y_test, y_pred)
     report = classification_report(y_test, y_pred)
     
-    print(f"\n=== Métricas de Avaliação do Classificador ===")
-    print(f"Acurácia: {accuracy:.2%}")
+    print(f"\n=== Métricas de Avaliação do Classificador OTIMIZADO ===")
+    print(f"Melhor acurácia da validação cruzada (CV): {grid_search.best_score_:.2%}")
+    print(f"Acurácia no conjunto de teste: {accuracy:.2%}")
     print("\nRelatório de Classificação:")
     print(report)
 
     # Matriz de Confusão com Plotly
-    cm = confusion_matrix(y_test, y_pred, labels=model.classes_)
-    
-    # Plotly espera que os dados da matriz de confusão sejam invertidos verticalmente para a exibição correta
-    fig = ff.create_annotated_heatmap(
-        z=cm[::-1], # inverte a matriz
-        x=list(model.classes_),
-        y=list(model.classes_)[::-1], # inverte as labels do eixo y
-        colorscale='Blues',
-        showscale=True
-    )
-    
-    fig.update_layout(
-        title_text='Matriz de Confusão',
-        xaxis_title='Previsto',
-        yaxis_title='Verdadeiro'
-    )
-    
-    # Salvar como um arquivo HTML interativo
-    pio.write_html(fig, 'PISI3-Project/confusion_matrix.html')
-    print("\nMatriz de confusão interativa salva em 'PISI3-Project/confusion_matrix.html'")
+    cm = confusion_matrix(y_test, y_pred, labels=best_model.classes_)
+    fig = ff.create_annotated_heatmap(z=cm[::-1], x=list(best_model.classes_), y=list(best_model.classes_)[::-1], colorscale='Blues', showscale=True)
+    fig.update_layout(title_text='Matriz de Confusão (Modelo Otimizado)', xaxis_title='Previsto', yaxis_title='Verdadeiro')
+    pio.write_html(fig, 'PISI3-Project/confusion_matrix_optimized.html')
+    print("\nMatriz de confusão interativa salva em 'PISI3-Project/confusion_matrix_optimized.html'")
 
+    # Salvar o modelo otimizado
+    model_filename = 'PISI3-Project/property_classifier_model_optimized.joblib'
+    joblib.dump(best_model, model_filename)
+    print(f"Modelo OTIMIZADO salvo em: {model_filename}")
 
-    # Salvar o modelo treinado
-    # **PRÓXIMO PASSO**: Implementar explicabilidade com SHAP usando este modelo.
-    model_filename = 'PISI3-Project/property_classifier_model.joblib'
-    joblib.dump(model, model_filename)
-    print(f"Modelo de classificação salvo em: {model_filename}")
-
-    return model
+    return best_model
 
 def main():
     """
     Função principal para orquestrar o processo.
     """
-    # Carregar dados clusterizados
     df_clustered, _, _ = get_clustering_data_optimized()
     if df_clustered is None:
         print("Erro: Não foi possível carregar os dados clusterizados.")
         return
 
-    # 1. Transformar em problema de classificação
     df_classification = create_classification_target(df_clustered)
-    
-    # 2. Treinar e avaliar o modelo de classificação
     train_classification_model(df_classification)
 
 
