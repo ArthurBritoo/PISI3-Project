@@ -32,3 +32,5 @@ property_value_prediction_model.joblib
 property_value_prediction_random_forest.joblib
 property_value_prediction_gradient_boosting.joblib
 property_value_prediction_linear_regression.joblib
+confusion_matrix.html
+property_classifier_model.joblib
