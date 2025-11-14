@@ -36,3 +36,7 @@ confusion_matrix.html
 property_classifier_model.joblib
 property_classifier_model_optimized.joblib
 confusion_matrix_optimized.html
+shap_force_plot_local.html
+
+
+
