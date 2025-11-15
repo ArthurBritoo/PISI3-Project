@@ -29,3 +29,23 @@ data/clustering_metadata.json
 # Ignorar modelo treinado pesado
 PISI3-Project/property_value_prediction_model.joblib
 property_value_prediction_model.joblib
+property_value_prediction_random_forest.joblib
+property_value_prediction_gradient_boosting.joblib
+property_value_prediction_linear_regression.joblib
+confusion_matrix.html
+property_classifier_model.joblib
+property_classifier_model_optimized.joblib
+confusion_matrix_optimized.html
+shap_force_plot_local.html
+
+
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.pt
+models/
+
+
+
+
