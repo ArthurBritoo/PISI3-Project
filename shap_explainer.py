@@ -76,7 +76,31 @@ def generate_shap_explanations():
         plt.title(f'Impacto das Features na Classe: {class_name}')
         plt.savefig(f'PISI3-Project/shap_summary_beeswarm_{class_name}.png', bbox_inches='tight')
         plt.close()
-    print("Gráficos beeswarm salvos em: PISI3-Project/")
+    print("Gráficos beeswarm salvos em: PISI3-Project/") # Gráfico SHAP: Importância por classe (Multiclasse Bar Plot)
+    print("Gerando Gráfico de Importância por Classe (Barra Multiclasse)...")
+    try:
+        plt.figure(figsize=(12, 8)) 
+        # A função summary_plot gera o gráfico de barras multiclasse automaticamente
+        # quando recebe um objeto de explicação (shap_values_obj) multiclasse.
+        shap.summary_plot(
+            shap_values=shap_values_obj,
+            features=X_test_sample, # Passamos features para nomes e contexto
+            plot_type="bar",        # Especifica o tipo de gráfico como barra
+            class_names=class_names,# Nomes das classes
+            show=False              # Não exibe, apenas salva
+        )
+        plt.title("Importância das Features Segmentada por Classe (SHAP)")
+        # Salva o gráfico com o novo nome
+        plt.savefig(
+            os.path.join('PISI3-Project/shap_summary_bar_multiclass.png'),
+            bbox_inches='tight'
+        )
+        plt.close()
+        print(f"NOVO Gráfico 'shap_summary_bar_multiclass.png' gerado e salvo em: PISI3-Project/shap_summary_bar_multiclass.png")
+
+    except Exception as e:
+        print(f"Erro ao gerar o gráfico de barras multiclasse SHAP: {e}")
+
 
     # 6. GERAR E SALVAR GRÁFICO DE EXPLICAÇÃO LOCAL
     print("Gerando gráfico de força para uma predição local...")
