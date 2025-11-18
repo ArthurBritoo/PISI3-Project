@@ -3,6 +3,7 @@ import shap
 import joblib
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import os
 
 # Importar funções de preparação de dados dos scripts anteriores
 from clustering_analysis import get_clustering_data_optimized

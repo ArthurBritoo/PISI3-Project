@@ -1,3 +1,5 @@
+from sklearn.model_selection import train_test_split
+
 def prepare_data(df_clustered):
     """
     Prepara as features e o target, define colunas, e divide os dados.
