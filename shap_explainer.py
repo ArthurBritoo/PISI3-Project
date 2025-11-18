@@ -4,7 +4,7 @@ import joblib
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-# Importar funções de preparação de dados dos scripts anteriores
+
 from clustering_analysis import get_clustering_data_optimized
 from classification_model import create_classification_target
 
@@ -75,10 +75,10 @@ def generate_shap_explanations():
         shap.summary_plot(shap_values_obj[:, :, i], features=X_test_sample, show=False)
         plt.title(f'Impacto das Features na Classe: {class_name}')
         plt.savefig(f'PISI3-Project/shap_summary_beeswarm_{class_name}.png', bbox_inches='tight')
-        plt.close()
+      
     print("Gráficos beeswarm salvos em: PISI3-Project/")
-
     # Gráfico SHAP: Importância por classe (Multiclasse Bar Plot)
+    print("Gráficos beeswarm salvos em: PISI3-Project/") # Gráfico SHAP: Importância por classe (Multiclasse Bar Plo
     print("Gerando Gráfico de Importância por Classe (Barra Multiclasse)...")
     try:
         plt.figure(figsize=(12, 8)) 

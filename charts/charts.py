@@ -1,45 +1,49 @@
 import plotly.express as px
 import pandas as pd
 
-def plot_valor_m2_por_bairro(df: pd.DataFrame):
-    """Retorna um gráfico de barras com a mediana do valor por m²
-    por bairro.
+def plot_valor_m2_por_bairro(
+    df: pd.DataFrame,
+    tipo_agregacao: str = "median",
+    top_n: int = 20
+):
+    """
+    Retorna um gráfico de barras com a média ou mediana do valor por m²
+    por bairro, permitindo escolher o tipo de agregação e o número de bairros.
 
-    Passos:
-    - Filtra apenas tipos de imóvel relevantes (Apartamento e Casa).
-    - Agrupa por `bairro` calculando a mediana de `valor_m2`.
-    - Ordena do maior para o menor e seleciona os 20 principais bairros.
-    - Cria um gráfico de barras colorido onde a cor reflete o valor do m².
-
-    Entrada:
+    Parâmetros:
         df: DataFrame já pré-processado contendo colunas `tipo_imovel`,
             `bairro` e `valor_m2`.
+        tipo_agregacao: 'mean' ou 'median' para definir a agregação.
+        top_n: Número de bairros a mostrar (ex: 10 ou 20).
 
     Retorno:
         plotly.graph_objs.Figure pronto para exibir.
     """
-    # Filtra apenas apartamentos e casas — estes têm comparabilidade direta
+    # Filtra apenas apartamentos e casas
     df_filtered = df[df["tipo_imovel"].isin(["Apartamento", "Casa"])]
 
-    # Agrupa por bairro e calcula a média do valor por m2
-    df_grouped = df_filtered.groupby("bairro")["valor_m2"].mean().reset_index()
+    # Escolhe agregação
+    if tipo_agregacao == "mean":
+        df_grouped = df_filtered.groupby("bairro")["valor_m2"].mean().reset_index()
+        titulo = f"Média do Valor do Metro Quadrado por Bairro (Top {top_n})"
+        ylabel = "Valor do m² (R$) - Média"
+    else:
+        df_grouped = df_filtered.groupby("bairro")["valor_m2"].median().reset_index()
+        titulo = f"Mediana do Valor do Metro Quadrado por Bairro (Top {top_n})"
+        ylabel = "Valor do m² (R$) - Mediana"
 
-    # Pega os Top 20 bairros por valor médio
-    df_grouped = df_grouped.sort_values(by="valor_m2", ascending=False).head(20)
+    # Ordena e pega os Top N bairros
+    df_grouped = df_grouped.sort_values(by="valor_m2", ascending=False).head(top_n)
 
-    # Constrói o gráfico com uma escala de cor contínua para facilitar
-    # a leitura dos valores
     fig = px.bar(
         df_grouped,
         x="bairro",
         y="valor_m2",
-        title="Mediana do Valor do Metro Quadrado por Bairro (Top 20)",
-        labels={"bairro": "Bairro", "valor_m2": "Valor do m² (R$)"},
+        title=titulo,
+        labels={"bairro": "Bairro", "valor_m2": ylabel},
         color="valor_m2",
         color_continuous_scale=px.colors.sequential.Viridis,
     )
-
-    # Rotaciona os rótulos do eixo X para melhor leitura quando há muitos
     fig.update_layout(xaxis_tickangle=-45)
     return fig
 

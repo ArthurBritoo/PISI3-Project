@@ -2,7 +2,16 @@
 import pandas as pd
 import os
 
-def load_and_preprocess_data(data_dir='data'):
+def load_and_preprocess_data():
+    # Get the directory of the current script (data_processing.py)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Go up two levels to the PISI3-Project directory, then into the 'data' folder
+    data_dir = os.path.join(script_dir, '..', '..', 'data')
+    
+    # Check if the data directory exists
+    if not os.path.isdir(data_dir):
+        raise FileNotFoundError(f"Diretório de dados não encontrado: {data_dir}. Verifique se a pasta 'data' existe no projeto.")
+
     all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.parquet')]
     
     li = []
@@ -50,16 +59,9 @@ def load_and_preprocess_data(data_dir='data'):
     return df
 
 if __name__ == '__main__':
-    # Exemplo de uso para testar a função localmente. Use um caminho de
-    # dados relativo ao diretório deste arquivo para evitar FileNotFoundError
-    base_dir = os.path.dirname(__file__)
-    data_dir = os.path.join(base_dir, 'data')
-
-    if not os.path.isdir(data_dir):
-        raise SystemExit(f"Diretório de dados não encontrado: {data_dir}. Verifique se a pasta 'data' existe no projeto.")
-
-    df_processed = load_and_preprocess_data(data_dir=data_dir)
+    # Exemplo de uso para testar a função localmente.
+    # A função load_and_preprocess_data agora determina o caminho de dados internamente.
+    df_processed = load_and_preprocess_data()
     print(df_processed.head())
     print(df_processed.info())
     print(df_processed.describe())
-
