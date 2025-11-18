@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.ensemble import RandomForestRegressor
-# Importações do seu código
 from sklearn.metrics import mean_absolute_error
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -113,3 +112,4 @@ def optimize_random_forest():
 if __name__ == "__main__":
     optimized_model = optimize_random_forest()
     # Próximo passo: Salvar 'optimized_model' usando joblib
+
