@@ -30,9 +30,8 @@ st.set_page_config(
 @st.cache_data(show_spinner=False)
 def get_data():
     """Carrega dados gerais do ITBI."""
-    base_dir = os.path.dirname(__file__)
-    data_dir = os.path.join(base_dir, "data")
-    return load_and_preprocess_data(data_dir=data_dir)
+    # A função já resolve o diretório internamente
+    return load_and_preprocess_data()
 
 @st.cache_data(show_spinner=False)
 def get_clustering_data():
@@ -43,7 +42,8 @@ def get_clustering_data():
 def load_model():
     """Carrega o modelo de classificação treinado."""
     try:
-        model = joblib.load('PISI3-Project/property_classifier_model_optimized.joblib')
+        # O arquivo está na raiz do projeto
+        model = joblib.load('property_classifier_model_optimized.joblib')
         return model
     except FileNotFoundError:
         st.error("Arquivo do modelo 'property_classifier_model_optimized.joblib' não encontrado. Execute o script de treinamento do modelo primeiro.")
@@ -108,17 +108,17 @@ with tab5:
 
         # Exibir gráficos SHAP
         try:
-            st.image(Image.open('PISI3-Project/shap_summary_bar.png'), caption='Importância Global das Features (SHAP)', use_column_width=True)
+            st.image(Image.open('shap_summary_bar.png'), caption='Importância Global das Features (SHAP)', use_column_width=True)
 
             with st.expander("Ver análise detalhada por classe (Beeswarm plots)"):
-                st.image(Image.open('PISI3-Project/shap_summary_beeswarm_Alto Valor.png'), caption='Impacto das Features na Classe: Alto Valor', use_column_width=True)
-                st.image(Image.open('PISI3-Project/shap_summary_beeswarm_Médio.png'), caption='Impacto das Features na Classe: Médio', use_column_width=True)
-                st.image(Image.open('PISI3-Project/shap_summary_beeswarm_Econômico.png'), caption='Impacto das Features na Classe: Econômico', use_column_width=True)
+                st.image(Image.open('shap_summary_beeswarm_Alto Valor.png'), caption='Impacto das Features na Classe: Alto Valor', use_column_width=True)
+                st.image(Image.open('shap_summary_beeswarm_Médio.png'), caption='Impacto das Features na Classe: Médio', use_column_width=True)
+                st.image(Image.open('shap_summary_beeswarm_Econômico.png'), caption='Impacto das Features na Classe: Econômico', use_column_width=True)
 
             st.subheader("🔬 Análise de uma Predição Individual (Force Plot)")
             st.markdown("O gráfico abaixo é interativo e mostra como cada feature contribuiu para uma predição específica.")
             
-            with open('PISI3-Project/shap_force_plot_local.html', 'r') as f:
+            with open('shap_force_plot_local.html', 'r', encoding='utf-8') as f:
                 html_string = f.read()
             components.html(html_string, height=200, scrolling=True)
 

@@ -28,7 +28,7 @@ def generate_shap_explanations():
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
     # 2. CARREGAR O MODELO OTIMIZADO
-    model_filename = 'PISI3-Project/property_classifier_model_optimized.joblib'
+    model_filename = 'property_classifier_model_optimized.joblib'
     print(f"Carregando modelo otimizado de: {model_filename}")
     try:
         best_model = joblib.load(model_filename)
@@ -62,9 +62,9 @@ def generate_shap_explanations():
     # A nova API usa o objeto shap_values_obj diretamente
     shap.summary_plot(shap_values_obj, plot_type="bar", feature_names=X_test_sample.columns, class_names=class_names, show=False)
     plt.title("Importância Global das Features (SHAP)")
-    plt.savefig('PISI3-Project/shap_summary_bar.png', bbox_inches='tight')
+    plt.savefig('shap_summary_bar.png', bbox_inches='tight')
     plt.close()
-    print("Gráfico salvo em: PISI3-Project/shap_summary_bar.png")
+    print("Gráfico salvo em: shap_summary_bar.png")
 
     # Gráfico Beeswarm (Distribuição do Impacto das Features)
     print("Gerando gráficos beeswarm...")
@@ -74,9 +74,9 @@ def generate_shap_explanations():
         plt.figure()
         shap.summary_plot(shap_values_obj[:, :, i], features=X_test_sample, show=False)
         plt.title(f'Impacto das Features na Classe: {class_name}')
-        plt.savefig(f'PISI3-Project/shap_summary_beeswarm_{class_name}.png', bbox_inches='tight')
+        plt.savefig(f'shap_summary_beeswarm_{class_name}.png', bbox_inches='tight')
         plt.close()
-    print("Gráficos beeswarm salvos em: PISI3-Project/")
+    print("Gráficos beeswarm salvos em: ./")
 
     # 6. GERAR E SALVAR GRÁFICO DE EXPLICAÇÃO LOCAL
     print("Gerando gráfico de força para uma predição local...")
@@ -88,8 +88,15 @@ def generate_shap_explanations():
     force_plot = shap.force_plot(shap_values_obj[0, :, predicted_class_index], matplotlib=False)
     
     # Salvar o gráfico de força como um arquivo HTML
-    shap.save_html('PISI3-Project/shap_force_plot_local.html', force_plot)
-    print("Gráfico de força local salvo em: PISI3-Project/shap_force_plot_local.html")
+    shap.save_html('shap_force_plot_local.html', force_plot)
+    print("Gráfico de força local salvo em: shap_force_plot_local.html")
+
+    # 7. SALVAR ARTEFATOS SHAP PARA O DASHBOARD
+    print("\nSalvando artefatos SHAP para uso no dashboard...")
+    joblib.dump(explainer, 'shap_explainer.joblib')
+    joblib.dump(shap_values_obj, 'shap_values.joblib')
+    joblib.dump(X_test_sample, 'X_test_sample_transformed.joblib')
+    print("Artefatos SHAP (explainer, values, sample_data) salvos com sucesso!")
 
 if __name__ == "__main__":
     generate_shap_explanations()
