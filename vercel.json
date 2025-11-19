@@ -1,16 +1,12 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": { "maxLambdaSize": "50mb" }
+  "functions": {
+    "api/*.py": {
+      "runtime": "python3.11",
+      "includeFiles": [
+        "property_classifier_model_optimized2.joblib"
+      ],
+      "excludeFiles": "{**/notebooks/**,**/datasets/**,**/docs/**,**/tests/**,**/*.md,**/tmp/**,**/public/**,**/assets/**}"
     }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
-  ]
+  }
 }
