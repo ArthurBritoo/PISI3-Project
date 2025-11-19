@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+joblib
+numpy
+pandas
+scikit-learn
+requests
+python-dotenv   # se for usar variáveis de ambiente
