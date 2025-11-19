@@ -396,22 +396,6 @@ elif page == "🎯 Clustering K-Means":
         fig_area.update_layout(showlegend=False, xaxis_tickangle=-45)
         st.plotly_chart(fig_area, use_container_width=True)
     
-    # Scatter plot com tamanho das bolhas
-    st.markdown("### 🔍 Relação Valor x Área x Volume de Imóveis")
-    fig_scatter = px.scatter(
-        cluster_data,
-        x='Area_Media',
-        y='Valor_m2',
-        size='Imóveis',
-        color='Cluster',
-        hover_data=['Ano_Medio', 'Percentual'],
-        title='Valor/m² vs Área Média (tamanho = quantidade de imóveis no cluster)',
-        labels={'Area_Media': 'Área Média (m²)', 'Valor_m2': 'Valor/m² (R$)'},
-        size_max=60
-    )
-    fig_scatter.update_layout(height=500)
-    st.plotly_chart(fig_scatter, use_container_width=True)
-    
     # Insights dos clusters
     st.markdown("### 💡 Características Principais dos Clusters")
     
@@ -550,11 +534,18 @@ elif page == "🔮 Classificação ML":
         
         st.markdown("""
         <div class="insight-box">
-        <b>📊 Interpretação da Matriz:</b><br>
-        • Diagonal principal (azul escuro) = predições corretas<br>
-        • Maior confusão: Médio ↔ Alto Valor (200 casos)<br>
-        • Fronteira sutil entre categorias próximas<br>
-        • Econômico bem separado (menor confusão)
+        <b>📊 Como Ler a Matriz de Confusão:</b><br><br>
+        
+        <b>Exemplo prático:</b><br>
+        • Linha "Econômico", Coluna "Econômico": <b>1.250 acertos</b> ✅<br>
+        • Linha "Econômico", Coluna "Médio": <b>180 erros</b> (classificou Econômico como Médio) ❌<br>
+        • Linha "Econômico", Coluna "Alto Valor": <b>70 erros</b> (classificou Econômico como Alto) ❌<br><br>
+        
+        <b>Diagnóstico:</b><br>
+        • <b>Diagonal principal (azul escuro):</b> Acertos = 1.250 + 1.400 + 1.330 = <b>3.980 corretos</b><br>
+        • <b>Fora da diagonal:</b> Erros = 820 casos (17% de erro)<br>
+        • <b>Maior confusão:</b> Médio ↔ Alto Valor (200+170=370 erros) - fronteira sutil<br>
+        • <b>Melhor separação:</b> Econômico (apenas 250 erros totais)
         </div>
         """, unsafe_allow_html=True)
     
@@ -688,14 +679,14 @@ elif page == "🔮 Classificação ML":
 # ==================== PÁGINA 4: ANÁLISE DE BALANCEAMENTO ====================
 elif page == "⚖️ Análise de Balanceamento":
     
-    st.markdown("## Por Que Nosso ML Não Necessita Balanceamento SMOTEN")
+    st.markdown("## SMOTEN: Por Que NÃO Foi Necessário")
     
     st.markdown("""
-    <div class="insight-box">
-    <b>⚖️ SMOTEN (Synthetic Minority Over-sampling Technique for Nominal)</b><br>
-    É uma técnica de balanceamento de classes que gera amostras sintéticas da classe minoritária
-    para equilibrar datasets desbalanceados. No entanto, <b>nem sempre é necessário ou benéfico</b>.
-    Aplicamos análise rigorosa para decidir se SMOTEN traria benefícios ao nosso modelo.
+    <div class="insight-box" style="border-left: 4px solid green;">
+    <b>✅ CONCLUSÃO DIRETA: Dataset perfeitamente balanceado (33/33/33%) - SMOTEN é desnecessário e prejudicial.</b><br><br>
+    
+    <b>SMOTEN</b> gera amostras sintéticas para equilibrar classes desbalanceadas. Nosso dataset já é naturalmente balanceado,
+    tornando esta técnica inútil e até contraproducente (reduz acurácia em 2% e aumenta tempo em 66%).
     </div>
     """, unsafe_allow_html=True)
     
@@ -725,37 +716,22 @@ elif page == "⚖️ Análise de Balanceamento":
         fig_dist.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
         fig_dist.update_layout(yaxis_range=[0, 40], showlegend=False)
         st.plotly_chart(fig_dist, use_container_width=True)
-        
-        fig_pie = px.pie(
-            class_distribution,
-            values='Percentual',
-            names='Categoria',
-            title='Proporção das Classes',
-            hole=0.4,
-            color='Categoria',
-            color_discrete_sequence=['#3498db', '#e74c3c', '#2ecc71']
-        )
-        st.plotly_chart(fig_pie, use_container_width=True)
     
     with col2:
         st.markdown("""
-        <div class="insight-box">
-        <b>✅ Dataset Naturalmente Balanceado!</b><br><br>
+        <div class="insight-box" style="border-left: 4px solid green;">
+        <b>✅ PERFEITAMENTE BALANCEADO</b><br><br>
         
-        <b>Análise da Distribuição:</b><br>
-        • Econômico: 32.8% (28.250 imóveis)<br>
-        • Médio: 33.7% (29.000 imóveis)<br>
-        • Alto Valor: 33.4% (28.756 imóveis)<br><br>
+        • Econômico: <b>32.8%</b> (28.250)<br>
+        • Médio: <b>33.7%</b> (29.000)<br>
+        • Alto Valor: <b>33.4%</b> (28.756)<br><br>
         
-        <b>📏 Métrica de Balanceamento:</b><br>
-        • Diferença máxima: apenas 0.9%<br>
-        • Todas as classes têm ~33% (perfeitamente balanceado)<br>
-        • Ratio min/max: 0.974 (próximo de 1.0 = ideal)<br><br>
+        <b>📏 Diferença máxima: 0.9%</b><br>
+        (ideal < 5%)<br><br>
         
-        <b>🎯 Conclusão:</b><br>
-        Classes praticamente idênticas em tamanho,
-        eliminando a necessidade de técnicas de
-        balanceamento como SMOTEN ou SMOTE.
+        <b>🎯 VEREDICTO:</b><br>
+        Classes idênticas em tamanho.
+        <b>SMOTEN = DESNECESSÁRIO</b>
         </div>
         """, unsafe_allow_html=True)
     
@@ -765,10 +741,9 @@ elif page == "⚖️ Análise de Balanceamento":
     st.markdown("### 🔬 Experimento: Impacto do SMOTEN no Modelo")
     
     st.markdown("""
-    <div class="insight-box">
-    <b>📋 Metodologia do Experimento:</b><br>
-    Testamos o modelo Random Forest com e sem aplicação de SMOTEN para verificar se haveria
-    ganho de performance. Os resultados mostram que <b>SMOTEN não apenas não ajuda, como pode prejudicar</b>.
+    <div class="insight-box" style="border-left: 4px solid red;">
+    <b>⚠️ EXPERIMENTO: SMOTEN vs Sem Balanceamento</b><br>
+    Testamos com e sem SMOTEN. Resultado: <b>SMOTEN PIOROU o modelo</b> (-2% acurácia, +66% tempo).
     </div>
     """, unsafe_allow_html=True)
     
@@ -807,24 +782,22 @@ elif page == "⚖️ Análise de Balanceamento":
     
     with col2:
         st.markdown("""
-        <div class="insight-box">
-        <b>📉 Resultados do Experimento:</b><br><br>
+        <div class="insight-box" style="border-left: 4px solid red;">
+        <b>📉 RESULTADOS:</b><br><br>
         
-        <b>Sem Balanceamento (Original):</b><br>
-        • Acurácia: 78.0%<br>
-        • F1-Score: 0.75<br>
-        • Tempo: 2.08 minutos<br><br>
+        <b>✅ SEM Balanceamento:</b><br>
+        • Acurácia: <b>78.0%</b><br>
+        • Tempo: <b>2.08 min</b><br><br>
         
-        <b>Com SMOTEN:</b><br>
-        • Acurácia: 76.0% (-2%)<br>
-        • F1-Score: 0.74 (-0.01)<br>
-        • Tempo: 3.45 minutos (+66%)<br><br>
+        <b>❌ COM SMOTEN:</b><br>
+        • Acurácia: <b>76.0%</b> (⬇️ -2%)<br>
+        • Tempo: <b>3.45 min</b> (⬆️ +66%)<br><br>
         
-        <b>⚠️ Problemas do SMOTEN:</b><br>
-        • Criação de amostras sintéticas desnecessárias<br>
-        • Introdução de ruído nos dados<br>
-        • Aumento do tempo de processamento<br>
-        • Redução da performance geral
+        <b>SMOTEN introduz:</b><br>
+        ❌ Amostras sintéticas ruins<br>
+        ❌ Ruído nos dados<br>
+        ❌ Processamento mais lento<br>
+        ❌ Performance pior
         </div>
         """, unsafe_allow_html=True)
     
@@ -888,53 +861,23 @@ elif page == "⚖️ Análise de Balanceamento":
     st.markdown("---")
     
     # Conclusões Finais
-    st.markdown("### ✅ Conclusões sobre Balanceamento")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="insight-box">
-        <b>📊 Distribuição Natural</b><br>
-        Dataset perfeitamente balanceado por design
-        (33/33/33%). Criação de categorias usando
-        quantis garante equilíbrio automático.
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="insight-box">
-        <b>🎯 Performance</b><br>
-        SMOTEN causou queda de 2% na acurácia
-        e aumento de 66% no tempo de treino,
-        sem benefício algum.
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="insight-box">
-        <b>✅ Decisão Final</b><br>
-        Manter dados originais sem balanceamento.
-        Modelo funciona melhor com distribuição natural
-        das classes.
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("### ✅ DECISÃO FINAL")
     
     st.markdown("""
-    <div class="insight-box" style="border-left: 4px solid green;">
-    <b>💡 Quando Usar SMOTEN/SMOTE:</b><br>
-    Técnicas de balanceamento são recomendadas quando há <b>desbalanceamento significativo</b>:
-    <ul>
-        <li>Classe minoritária com < 20% dos dados</li>
-        <li>Ratio entre classes > 3:1</li>
-        <li>Modelo apresenta viés forte para classe majoritária</li>
-        <li>Recall da classe minoritária muito baixo (< 50%)</li>
-    </ul>
-    <b>Nosso caso não se encaixa em nenhum desses cenários!</b>
+    <div class="insight-box" style="border-left: 4px solid green; background-color: #e8f5e9;">
+    <h3 style="color: green; margin-top: 0;">✅ NÃO USAR SMOTEN</h3>
+    
+    <b>Motivos:</b><br>
+    1️⃣ Dataset já balanceado (33/33/33%)<br>
+    2️⃣ SMOTEN reduziu acurácia em 2%<br>
+    3️⃣ SMOTEN aumentou tempo em 66%<br>
+    4️⃣ Modelo original tem melhor generalização<br><br>
+    
+    <b>Manter configuração original sem balanceamento.</b>
     </div>
     """, unsafe_allow_html=True)
+    
+    st.info("💡 **Quando usar SMOTEN?** Apenas com desbalanceamento severo (classe < 20%, ratio > 3:1). Nosso caso: perfeitamente balanceado (33/33/33%).")
 
 # ==================== PÁGINA 5: TUNING (GRIDSEARCH) ====================
 elif page == "⚙️ Tuning (GridSearch)":
@@ -1224,14 +1167,20 @@ elif page == "🧠 Explicabilidade SHAP":
     # Feature Importance Global
     st.markdown("### 🎯 Importância Global das Features (SHAP Values)")
     
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         # Carregar imagem SHAP se existir
-        if os.path.exists('shap_summary_bar.png'):
+        if os.path.exists('docs/shap_summary_bar.png'):
+            try:
+                img = Image.open('docs/shap_summary_bar.png')
+                st.image(img, caption='Feature Importance Global (SHAP)', width=500)
+            except:
+                st.warning("Imagem não encontrada em docs/")
+        elif os.path.exists('shap_summary_bar.png'):
             try:
                 img = Image.open('shap_summary_bar.png')
-                st.image(img, caption='Feature Importance Global (SHAP)', use_container_width=True)
+                st.image(img, caption='Feature Importance Global (SHAP)', width=500)
             except:
                 # Fallback para gráfico Plotly
                 fig_shap = px.bar(
@@ -1244,7 +1193,7 @@ elif page == "🧠 Explicabilidade SHAP":
                     color_continuous_scale='Viridis',
                     text=feat_importance['Importância'].apply(lambda x: f'{x:.0%}')
                 )
-                fig_shap.update_layout(yaxis={'categoryorder':'total ascending'})
+                fig_shap.update_layout(yaxis={'categoryorder':'total ascending'}, height=400)
                 fig_shap.update_traces(textposition='outside')
                 st.plotly_chart(fig_shap, use_container_width=True)
         else:
@@ -1258,7 +1207,7 @@ elif page == "🧠 Explicabilidade SHAP":
                 color_continuous_scale='Viridis',
                 text=feat_importance['Importância'].apply(lambda x: f'{x:.0%}')
             )
-            fig_shap.update_layout(yaxis={'categoryorder':'total ascending'})
+            fig_shap.update_layout(yaxis={'categoryorder':'total ascending'}, height=400)
             fig_shap.update_traces(textposition='outside')
             st.plotly_chart(fig_shap, use_container_width=True)
     
@@ -1286,49 +1235,66 @@ elif page == "🧠 Explicabilidade SHAP":
     # Gráfico Multiclasse
     st.markdown("### 📊 Importância das Features por Classe (Barras Multiclasse)")
     
-    if os.path.exists('shap_summary_bar_multiclass.png'):
-        try:
-            img_multi = Image.open('shap_summary_bar_multiclass.png')
-            st.image(img_multi, caption='Importância Segmentada por Categoria de Valor', 
-                    use_container_width=True)
-        except:
-            st.info("Gráfico multiclasse SHAP não disponível. Execute shap_explainer.py para gerar.")
-    else:
-        # Gráfico alternativo se a imagem não existir
-        features_list = feat_importance['Feature'].tolist()
-        categories = ['Econômico', 'Médio', 'Alto Valor']
-        
-        shap_by_class = pd.DataFrame({
-            'Feature': features_list * 3,
-            'Categoria': sum([[cat] * len(features_list) for cat in categories], []),
-            'SHAP_Value': [
-                -0.15, -0.10, -0.08, 0.05, -0.12, -0.06,  # Econômico
-                0.02, 0.01, 0.03, 0.08, 0.02, 0.01,       # Médio
-                0.25, 0.20, 0.15, 0.12, 0.18, 0.10        # Alto Valor
-            ]
-        })
-        
-        fig_class = px.bar(
-            shap_by_class,
-            x='Feature',
-            y='SHAP_Value',
-            color='Categoria',
-            barmode='group',
-            title='Impacto Médio das Features por Categoria (SHAP)',
-            labels={'SHAP_Value': 'SHAP Value (impacto médio)'}
-        )
-        fig_class.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig_class, use_container_width=True)
+    col_multi1, col_multi2 = st.columns([2, 1])
     
-    st.markdown("""
-    <div class="insight-box">
-    <b>🔍 Interpretação do Gráfico Multiclasse:</b><br>
-    • <b>Features positivas (vermelho):</b> Aumentam a probabilidade da classe Alto Valor<br>
-    • <b>Features negativas (azul):</b> Aumentam a probabilidade da classe Econômico<br>
-    • <b>Features neutras:</b> Pouco impacto na diferenciação entre classes<br>
-    • Área construída tem impacto oposto entre Econômico (-) e Alto Valor (+)
-    </div>
-    """, unsafe_allow_html=True)
+    with col_multi1:
+        if os.path.exists('docs/shap_summary_bar_multiclass.png'):
+            try:
+                img_multi = Image.open('docs/shap_summary_bar_multiclass.png')
+                st.image(img_multi, caption='Importância Segmentada por Categoria de Valor', width=550)
+            except:
+                st.warning("Imagem não encontrada em docs/")
+        elif os.path.exists('shap_summary_bar_multiclass.png'):
+            try:
+                img_multi = Image.open('shap_summary_bar_multiclass.png')
+                st.image(img_multi, caption='Importância Segmentada por Categoria de Valor', width=550)
+            except:
+                st.info("Gráfico multiclasse SHAP não disponível. Execute shap_explainer.py para gerar.")
+        else:
+            # Gráfico alternativo se a imagem não existir
+            features_list = feat_importance['Feature'].tolist()
+            categories = ['Econômico', 'Médio', 'Alto Valor']
+            
+            shap_by_class = pd.DataFrame({
+                'Feature': features_list * 3,
+                'Categoria': sum([[cat] * len(features_list) for cat in categories], []),
+                'SHAP_Value': [
+                    -0.15, -0.10, -0.08, 0.05, -0.12, -0.06,  # Econômico
+                    0.02, 0.01, 0.03, 0.08, 0.02, 0.01,       # Médio
+                    0.25, 0.20, 0.15, 0.12, 0.18, 0.10        # Alto Valor
+                ]
+            })
+            
+            fig_class = px.bar(
+                shap_by_class,
+                x='Feature',
+                y='SHAP_Value',
+                color='Categoria',
+                barmode='group',
+                title='Impacto Médio das Features por Categoria (SHAP)',
+                labels={'SHAP_Value': 'SHAP Value (impacto médio)'}
+            )
+            fig_class.update_xaxes(tickangle=-45)
+            fig_class.update_layout(height=380)
+            st.plotly_chart(fig_class, use_container_width=True)
+    
+    with col_multi2:
+        st.markdown("""
+        <div class="insight-box">
+        <b>🔍 Interpretação:</b><br><br>
+        
+        <b>Features positivas (vermelho):</b><br>
+        Aumentam probabilidade de Alto Valor<br><br>
+        
+        <b>Features negativas (azul):</b><br>
+        Aumentam probabilidade de Econômico<br><br>
+        
+        <b>Features neutras:</b><br>
+        Pouco impacto na diferenciação<br><br>
+        
+        Área construída tem impacto oposto entre categorias.
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -1348,60 +1314,107 @@ elif page == "🧠 Explicabilidade SHAP":
     tabs = st.tabs(["🟢 Econômico", "🟡 Médio", "🔴 Alto Valor"])
     
     with tabs[0]:
-        if os.path.exists('shap_summary_beeswarm_Econômico.png'):
-            try:
-                img_eco = Image.open('shap_summary_beeswarm_Econômico.png')
-                st.image(img_eco, caption='Beeswarm Plot - Classe Econômico', 
-                        use_container_width=True)
-            except:
-                st.info("Gráfico beeswarm para Econômico não disponível.")
+        col_bee1, col_bee2 = st.columns([2, 1])
         
-        st.markdown("""
-        <div class="insight-box">
-        <b>💡 Insights - Classe Econômico:</b><br>
-        • Área construída baixa (azul) empurra fortemente para Econômico<br>
-        • Imóveis antigos (ano_construcao baixo) tendem a ser Econômico<br>
-        • Bairros menos valorizados contribuem positivamente
-        </div>
-        """, unsafe_allow_html=True)
+        with col_bee1:
+            st.markdown("#### Beeswarm Plot - Classe Econômico")
+            if os.path.exists('docs/shap_summary_beeswarm_Econômico.png'):
+                try:
+                    img_eco = Image.open('docs/shap_summary_beeswarm_Econômico.png')
+                    st.image(img_eco, width=500)
+                except:
+                    st.warning("Imagem não encontrada em docs/")
+            elif os.path.exists('shap_summary_beeswarm_Econômico.png'):
+                try:
+                    img_eco = Image.open('shap_summary_beeswarm_Econômico.png')
+                    st.image(img_eco, width=500)
+                except:
+                    st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py")
+            else:
+                st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py para gerar.")
+        
+        with col_bee2:
+            st.markdown("""
+            <div class="insight-box">
+            <b>💡 Insights:</b><br><br>
+            
+            • Área construída <b>baixa</b> (azul) empurra para Econômico<br><br>
+            
+            • Imóveis <b>antigos</b> tendem a ser Econômico<br><br>
+            
+            • Bairros <b>menos valorizados</b> contribuem positivamente
+            </div>
+            """, unsafe_allow_html=True)
     
     with tabs[1]:
-        if os.path.exists('shap_summary_beeswarm_Médio.png'):
-            try:
-                img_med = Image.open('shap_summary_beeswarm_Médio.png')
-                st.image(img_med, caption='Beeswarm Plot - Classe Médio', 
-                        use_container_width=True)
-            except:
-                st.info("Gráfico beeswarm para Médio não disponível.")
+        col_bee3, col_bee4 = st.columns([2, 1])
         
-        st.markdown("""
-        <div class="insight-box">
-        <b>💡 Insights - Classe Médio:</b><br>
-        • Categoria de transição, features moderadas<br>
-        • Área construída entre 70-120 m²<br>
-        • Ano de construção entre 2000-2015<br>
-        • Impacto mais balanceado das features
-        </div>
-        """, unsafe_allow_html=True)
+        with col_bee3:
+            st.markdown("#### Beeswarm Plot - Classe Médio")
+            if os.path.exists('docs/shap_summary_beeswarm_Médio.png'):
+                try:
+                    img_med = Image.open('docs/shap_summary_beeswarm_Médio.png')
+                    st.image(img_med, width=500)
+                except:
+                    st.warning("Imagem não encontrada em docs/")
+            elif os.path.exists('shap_summary_beeswarm_Médio.png'):
+                try:
+                    img_med = Image.open('shap_summary_beeswarm_Médio.png')
+                    st.image(img_med, width=500)
+                except:
+                    st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py")
+            else:
+                st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py para gerar.")
+        
+        with col_bee4:
+            st.markdown("""
+            <div class="insight-box">
+            <b>💡 Insights:</b><br><br>
+            
+            • Categoria de <b>transição</b><br><br>
+            
+            • Área: <b>70-120 m²</b><br><br>
+            
+            • Ano: <b>2000-2015</b><br><br>
+            
+            • Impacto <b>balanceado</b> das features
+            </div>
+            """, unsafe_allow_html=True)
     
     with tabs[2]:
-        if os.path.exists('shap_summary_beeswarm_Alto Valor.png'):
-            try:
-                img_alto = Image.open('shap_summary_beeswarm_Alto Valor.png')
-                st.image(img_alto, caption='Beeswarm Plot - Classe Alto Valor', 
-                        use_container_width=True)
-            except:
-                st.info("Gráfico beeswarm para Alto Valor não disponível.")
+        col_bee5, col_bee6 = st.columns([2, 1])
         
-        st.markdown("""
-        <div class="insight-box">
-        <b>💡 Insights - Classe Alto Valor:</b><br>
-        • Área construída alta (vermelho) empurra para Alto Valor<br>
-        • Construções recentes (ano_construcao > 2010) muito importantes<br>
-        • Bairros premium (Boa Viagem) têm forte impacto positivo<br>
-        • Padrão de acabamento Alto é decisivo
-        </div>
-        """, unsafe_allow_html=True)
+        with col_bee5:
+            st.markdown("#### Beeswarm Plot - Classe Alto Valor")
+            if os.path.exists('docs/shap_summary_beeswarm_Alto Valor.png'):
+                try:
+                    img_alto = Image.open('docs/shap_summary_beeswarm_Alto Valor.png')
+                    st.image(img_alto, width=500)
+                except:
+                    st.warning("Imagem não encontrada em docs/")
+            elif os.path.exists('shap_summary_beeswarm_Alto Valor.png'):
+                try:
+                    img_alto = Image.open('shap_summary_beeswarm_Alto Valor.png')
+                    st.image(img_alto, width=500)
+                except:
+                    st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py")
+            else:
+                st.info("Gráfico beeswarm não disponível. Execute shap_explainer.py para gerar.")
+        
+        with col_bee6:
+            st.markdown("""
+            <div class="insight-box">
+            <b>💡 Insights:</b><br><br>
+            
+            • Área <b>alta</b> (vermelho) = Alto Valor<br><br>
+            
+            • Construções <b>recentes</b> (>2010)<br><br>
+            
+            • Bairros <b>premium</b> (Boa Viagem)<br><br>
+            
+            • Padrão <b>Alto</b> é decisivo
+            </div>
+            """, unsafe_allow_html=True)
     
     st.markdown("---")
     
