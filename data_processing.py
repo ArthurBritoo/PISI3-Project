@@ -2,16 +2,42 @@
 import pandas as pd
 import os
 
-def load_and_preprocess_data(data_dir='data'):
-    all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.parquet')]
+def load_and_preprocess_data():
+    # Diretório deste arquivo (raiz do projeto)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # A pasta 'data' fica na raiz do projeto
+    data_dir = os.path.join(script_dir, 'data')
+
+    # Fallback: tentar um nível acima (em caso de execução a partir de subpastas)
+    if not os.path.isdir(data_dir):
+        candidate = os.path.join(os.path.dirname(script_dir), 'data')
+        if os.path.isdir(candidate):
+            data_dir = candidate
+        else:
+            raise FileNotFoundError(f"Diretório de dados não encontrado: {data_dir}. Verifique se a pasta 'data' existe no projeto.")
+
+    # OTIMIZAÇÃO: Carregar apenas dados de 2020-2023 para reduzir tamanho do modelo
+    # Isso permite que o modelo fique abaixo do limite de 50MB do Supabase
+    years_to_load = ['2020', '2021', '2022', '2023']
+    all_files = [
+        os.path.join(data_dir, f) 
+        for f in os.listdir(data_dir) 
+        if f.endswith('.parquet') and any(year in f for year in years_to_load)
+    ]
+    
+    print(f"📊 Carregando dados de {', '.join(years_to_load)}...")
+    print(f"   Arquivos encontrados: {len(all_files)}")
     
     li = []
 
     for filename in all_files:
         df = pd.read_parquet(filename, engine='pyarrow')
+        year = [y for y in years_to_load if y in os.path.basename(filename)][0]
+        print(f"   • {year}: {len(df):,} registros")
         li.append(df)
 
     df = pd.concat(li, axis=0, ignore_index=True)
+    print(f"   ✅ Total: {len(df):,} registros carregados")
     
     # Para arquivos Parquet, os tipos já estão preservados, mas vamos garantir conversões seguras
     # Conversões numéricas com tratamento de erros
@@ -50,16 +76,9 @@ def load_and_preprocess_data(data_dir='data'):
     return df
 
 if __name__ == '__main__':
-    # Exemplo de uso para testar a função localmente. Use um caminho de
-    # dados relativo ao diretório deste arquivo para evitar FileNotFoundError
-    base_dir = os.path.dirname(__file__)
-    data_dir = os.path.join(base_dir, 'data')
-
-    if not os.path.isdir(data_dir):
-        raise SystemExit(f"Diretório de dados não encontrado: {data_dir}. Verifique se a pasta 'data' existe no projeto.")
-
-    df_processed = load_and_preprocess_data(data_dir=data_dir)
+    # Exemplo de uso para testar a função localmente.
+    # A função load_and_preprocess_data agora determina o caminho de dados internamente.
+    df_processed = load_and_preprocess_data()
     print(df_processed.head())
     print(df_processed.info())
     print(df_processed.describe())
-

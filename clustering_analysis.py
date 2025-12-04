@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import joblib
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
@@ -40,27 +41,48 @@ def filter_residential_data(df):
 def prepare_clustering_features(df_residential):
     """
     Prepara features para clusterização focando em características residenciais.
+    
+    ATENÇÃO: 'valor_m2' foi removido das features de clusterização para que os clusters
+    refletem o padrão construtivo e não o efeito de mercado (preço/localização).
+    'padrao_acabamento' é incluído via One-Hot Encoding.
     """
     print(f"\n=== PREPARAÇÃO DAS FEATURES ===")
     
-    # Selecionar features relevantes para residências
-    features = ['valor_m2', 'area_construida', 'area_terreno', 'ano_construcao']
+    # Features numéricas relevantes para residências
+    numerical_features = ['area_construida', 'area_terreno', 'ano_construcao']
     
-    # Criar DataFrame com features selecionadas
-    df_features = df_residential[features + ['bairro', 'tipo_imovel']].copy()
+    # Feature categórica a ser usada e encodificada
+    categorical_features = ['padrao_acabamento']
     
-    # Remover outliers extremos (além do 99º percentil)
-    for feature in features:
+    # Colunas para manter no DataFrame final para análise (mesmo que não usadas para clustering)
+    analysis_cols = ['bairro', 'tipo_imovel', 'valor_m2']
+    
+    # Criar DataFrame com todas as features necessárias para o processo
+    df_features = df_residential[numerical_features + categorical_features + analysis_cols].copy()
+    
+    # Remover outliers extremos (além do 99º percentil) para as features numéricas
+    for feature in numerical_features:
         q99 = df_features[feature].quantile(0.99)
         q01 = df_features[feature].quantile(0.01)
         df_features = df_features[
             (df_features[feature] >= q01) & (df_features[feature] <= q99)
         ]
     
-    print(f"Após remoção de outliers: {len(df_features):,} registros")
-    print(f"Features selecionadas: {features}")
+    # Aplicar One-Hot Encoding para 'padrao_acabamento'
+    df_features = pd.get_dummies(df_features, columns=categorical_features, prefix=categorical_features, drop_first=False)
     
-    return df_features, features
+    # Atualizar a lista de features para incluir as colunas one-hot encoded
+    # As novas colunas terão o formato 'padrao_acabamento_VALOR'.
+    # Primeiro, identificamos as colunas criadas pelo get_dummies
+    encoded_feature_names = [col for col in df_features.columns if col.startswith('padrao_acabamento_')]
+    
+    # A lista final de features para clustering será numérica + encoded
+    final_clustering_features = numerical_features + encoded_feature_names
+    
+    print(f"Após remoção de outliers e encoding: {len(df_features):,} registros")
+    print(f"Features selecionadas para clusterização (incluindo One-Hot Encoding): {final_clustering_features}")
+    
+    return df_features, final_clustering_features
 
 def perform_clustering(df_features, features, n_clusters=5):
     """
@@ -105,7 +127,10 @@ def analyze_clusters(df_clustered, features):
     """
     print(f"\n=== ANÁLISE DOS CLUSTERS ===")
     
-    cluster_summary = df_clustered.groupby('cluster')[features].agg(['mean', 'median']).round(2)
+    # As features para o summary devem ser as originais numéricas e o valor_m2
+    # Nomes das colunas one-hot encoded não são ideais para o summary 'mean'/'median'
+    summary_features_for_agg = [col for col in df_clustered.columns if col in ['area_construida', 'area_terreno', 'ano_construcao', 'valor_m2']]
+    cluster_summary = df_clustered.groupby('cluster')[summary_features_for_agg].agg(['mean', 'median']).round(2)
     
     for cluster_id in sorted(df_clustered['cluster'].unique()):
         print(f"\nCluster {cluster_id}:")
@@ -124,6 +149,12 @@ def analyze_clusters(df_clustered, features):
         tipo_predominante = cluster_data['tipo_imovel'].value_counts().index[0]
         pct_tipo = (cluster_data['tipo_imovel'].value_counts().iloc[0] / len(cluster_data)) * 100
         print(f"  • Tipo predominante: {tipo_predominante} ({pct_tipo:.1f}%)")
+        
+        # Padrão de acabamento predominante
+        if 'padrao_acabamento' in cluster_data.columns:
+            acabamento_predominante = cluster_data['padrao_acabamento'].value_counts().index[0]
+            pct_acabamento = (cluster_data['padrao_acabamento'].value_counts().iloc[0] / len(cluster_data)) * 100
+            print(f"  • Padrão Acabamento predominante: {acabamento_predominante} ({pct_acabamento:.1f}%)")
         
         # Bairros mais comuns
         top_bairros = cluster_data['bairro'].value_counts().head(3)
@@ -178,8 +209,25 @@ def create_cluster_visualizations(df_clustered):
             'tipo_imovel': 'Tipo de Imóvel'
         }
     )
-    
-    return fig1, fig2, fig3
+
+    # Gráfico 4: Contagem por Padrão de Acabamento e Cluster
+    if 'padrao_acabamento' in df_clustered.columns:
+        cluster_acabamento_counts = df_clustered.groupby(['cluster', 'padrao_acabamento']).size().reset_index(name='count')
+        fig4 = px.bar(
+            cluster_acabamento_counts,
+            x='cluster',
+            y='count',
+            color='padrao_acabamento',
+            title='Distribuição de Padrão de Acabamento por Cluster',
+            labels={
+                'cluster': 'Cluster',
+                'count': 'Número de Imóveis',
+                'padrao_acabamento': 'Padrão de Acabamento'
+            }
+        )
+        return fig1, fig2, fig3, fig4
+    else:
+        return fig1, fig2, fig3
 
 def main():
     """
@@ -204,28 +252,49 @@ def main():
     print(f"\n4. Executando clusterização...")
     df_clustered, kmeans, scaler, silhouette = perform_clustering(df_features, features)
     
-    # 5. Analisar clusters
-    print(f"\n5. Analisando clusters...")
+    # 5. Salvar modelos e cache
+    print(f"\n5. Salvando modelos e cache...")
+    save_clustering_cache(df_clustered, silhouette, features, kmeans, scaler)
+    
+    # 6. Analisar clusters
+    print(f"\n6. Analisando clusters...")
     cluster_summary = analyze_clusters(df_clustered, features)
     
-    # 6. Criar visualizações
-    print(f"\n6. Criando visualizações...")
-    fig1, fig2, fig3 = create_cluster_visualizations(df_clustered)
+    # 7. Criar visualizações
+    print(f"\n7. Criando visualizações...")
+    figures = create_cluster_visualizations(df_clustered)
     
     print(f"\n✅ Análise de clusterização concluída!")
     print(f"📊 {len(df_clustered):,} imóveis residenciais clusterizados")
     print(f"🎯 Silhouette Score: {silhouette:.3f}")
     
-    return df_clustered, (fig1, fig2, fig3), cluster_summary
+    return df_clustered, figures, cluster_summary
 
-def save_clustering_cache(df_clustered, silhouette_score, features, cache_dir='data'):
+def get_cache_paths():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_dir = os.path.join(script_dir, 'data') # Agora aponta para PISI3-Project/data
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
+    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
+    return cache_file, metadata_file, cache_dir
+
+def save_clustering_cache(df_clustered, silhouette_score, features, kmeans=None, scaler=None):
     """
     Salva os resultados da clusterização em cache para carregamento rápido.
     """
-    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
+    cache_file, metadata_file, cache_dir = get_cache_paths()
     
     # Salvar DataFrame com clusters
     df_clustered.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+    
+    # Salvar modelo KMeans e StandardScaler
+    if kmeans is not None:
+        model_file = os.path.join(cache_dir, 'kmeans_model.joblib')
+        joblib.dump(kmeans, model_file)
+    
+    if scaler is not None:
+        scaler_file = os.path.join(cache_dir, 'scaler.joblib')
+        joblib.dump(scaler, scaler_file)
     
     # Salvar metadados em arquivo separado
     metadata = {
@@ -236,24 +305,26 @@ def save_clustering_cache(df_clustered, silhouette_score, features, cache_dir='d
     }
     
     import json
-    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
     with open(metadata_file, 'w') as f:
         json.dump(metadata, f)
     
     print(f"✅ Cache da clusterização salvo:")
     print(f"   • Dados: {cache_file}")
     print(f"   • Metadata: {metadata_file}")
+    if kmeans is not None:
+        print(f"   • Modelo KMeans: {model_file}")
+    if scaler is not None:
+        print(f"   • Scaler: {scaler_file}")
     print(f"   • Registros: {len(df_clustered):,}")
 
-def load_clustering_cache(cache_dir='data'):
+def load_clustering_cache():
     """
     Carrega os resultados da clusterização do cache se disponível.
     
     Returns:
         tuple: (df_clustered, silhouette_score, features) ou None se cache não existir
     """
-    cache_file = os.path.join(cache_dir, 'clustering_cache.parquet')
-    metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
+    cache_file, metadata_file, _ = get_cache_paths()
     
     if not os.path.exists(cache_file) or not os.path.exists(metadata_file):
         return None
@@ -291,20 +362,54 @@ def get_clustering_data_optimized():
     
     if cached_result is not None:
         print("⚡ Dados carregados do cache (ultra-rápido)!")
-        return cached_result
+        # O cache pode não ter a coluna 'padrao_acabamento' one-hot encoded se foi salvo antes da mudança
+        # Então, precisamos verificar e recriar as features para o K-Means, se necessário.
+        # Para simplificar agora, vou forçar o reprocessamento se as features mudaram muito.
+        # Em um sistema real, você teria uma lógica de versão para o cache.
+        df_clustered, silhouette, cached_features_list = cached_result
+        
+        # Verificar se as features do cache correspondem às features esperadas após a atualização
+        # Esta é uma verificação simplificada; uma abordagem robusta compararia conjuntos de features
+        expected_numerical_features = ['area_construida', 'area_terreno', 'ano_construcao']
+        # Verificação se o cache foi gerado *antes* do one-hot encoding de padrao_acabamento
+        if not any(f.startswith('padrao_acabamento_') for f in cached_features_list):
+            print("⚠️ Cache antigo detectado (sem One-Hot Encoding de padrão de acabamento). Reprocessando...")
+            # Força o reprocessamento para garantir que o One-Hot Encoding seja aplicado
+            return process_and_save_new_clustering_data()
+        
+        # Se o cache é válido e já tem as features corretas, retorna-o
+        return df_clustered, silhouette, cached_features_list
     
-    print("🔄 Cache não encontrado, processando dados...")
-    
-    # Se não tem cache, processar do zero
+    print("🔄 Cache não encontrado ou inválido, processando dados...")
+    return process_and_save_new_clustering_data()
+
+def process_and_save_new_clustering_data():
+    """
+    Processa os dados de clusterização do zero e salva no cache.
+    """
     df = load_and_preprocess_data()
     df_residential = filter_residential_data(df)
     df_features, features = prepare_clustering_features(df_residential)
     df_clustered, kmeans, scaler, silhouette = perform_clustering(df_features, features)
     
-    # Salvar no cache para próximas vezes
-    save_clustering_cache(df_clustered, silhouette, features)
+    # Salvar no cache para próximas vezes (incluindo modelo e scaler)
+    save_clustering_cache(df_clustered, silhouette, features, kmeans, scaler)
     
     return df_clustered, silhouette, features
 
 if __name__ == "__main__":
+    # Modificando a chamada para main para refletir as novas features retornadas
     df_clustered, figures, summary = main()
+
+    # Exibir as figuras se o ambiente permitir (apenas para teste local)
+    # if len(figures) == 4:
+    #     fig1, fig2, fig3, fig4 = figures
+    #     fig1.show()
+    #     fig2.show()
+    #     fig3.show()
+    #     fig4.show()
+    # elif len(figures) == 3:
+    #     fig1, fig2, fig3 = figures
+    #     fig1.show()
+    #     fig2.show()
+    #     fig3.show()
