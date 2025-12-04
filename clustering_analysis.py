@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import joblib
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
@@ -173,7 +174,7 @@ def create_cluster_visualizations(df_clustered):
         x='area_construida', 
         y='valor_m2',
         color='cluster',
-        hover_data=['bairro', 'tipo_imovel', 'ano_construcao', 'padrao_acabamento'],
+        hover_data=['bairro', 'tipo_imovel', 'ano_construcao'],
         title='Clusters: Valor m² vs Área Construída (Dados Residenciais)',
         labels={
             'area_construida': 'Área Construída (m²)',
@@ -251,12 +252,16 @@ def main():
     print(f"\n4. Executando clusterização...")
     df_clustered, kmeans, scaler, silhouette = perform_clustering(df_features, features)
     
-    # 5. Analisar clusters
-    print(f"\n5. Analisando clusters...")
+    # 5. Salvar modelos e cache
+    print(f"\n5. Salvando modelos e cache...")
+    save_clustering_cache(df_clustered, silhouette, features, kmeans, scaler)
+    
+    # 6. Analisar clusters
+    print(f"\n6. Analisando clusters...")
     cluster_summary = analyze_clusters(df_clustered, features)
     
-    # 6. Criar visualizações
-    print(f"\n6. Criando visualizações...")
+    # 7. Criar visualizações
+    print(f"\n7. Criando visualizações...")
     figures = create_cluster_visualizations(df_clustered)
     
     print(f"\n✅ Análise de clusterização concluída!")
@@ -273,14 +278,23 @@ def get_cache_paths():
     metadata_file = os.path.join(cache_dir, 'clustering_metadata.json')
     return cache_file, metadata_file, cache_dir
 
-def save_clustering_cache(df_clustered, silhouette_score, features):
+def save_clustering_cache(df_clustered, silhouette_score, features, kmeans=None, scaler=None):
     """
     Salva os resultados da clusterização em cache para carregamento rápido.
     """
-    cache_file, metadata_file, _ = get_cache_paths()
+    cache_file, metadata_file, cache_dir = get_cache_paths()
     
     # Salvar DataFrame com clusters
     df_clustered.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+    
+    # Salvar modelo KMeans e StandardScaler
+    if kmeans is not None:
+        model_file = os.path.join(cache_dir, 'kmeans_model.joblib')
+        joblib.dump(kmeans, model_file)
+    
+    if scaler is not None:
+        scaler_file = os.path.join(cache_dir, 'scaler.joblib')
+        joblib.dump(scaler, scaler_file)
     
     # Salvar metadados em arquivo separado
     metadata = {
@@ -297,6 +311,10 @@ def save_clustering_cache(df_clustered, silhouette_score, features):
     print(f"✅ Cache da clusterização salvo:")
     print(f"   • Dados: {cache_file}")
     print(f"   • Metadata: {metadata_file}")
+    if kmeans is not None:
+        print(f"   • Modelo KMeans: {model_file}")
+    if scaler is not None:
+        print(f"   • Scaler: {scaler_file}")
     print(f"   • Registros: {len(df_clustered):,}")
 
 def load_clustering_cache():
@@ -374,8 +392,8 @@ def process_and_save_new_clustering_data():
     df_features, features = prepare_clustering_features(df_residential)
     df_clustered, kmeans, scaler, silhouette = perform_clustering(df_features, features)
     
-    # Salvar no cache para próximas vezes
-    save_clustering_cache(df_clustered, silhouette, features)
+    # Salvar no cache para próximas vezes (incluindo modelo e scaler)
+    save_clustering_cache(df_clustered, silhouette, features, kmeans, scaler)
     
     return df_clustered, silhouette, features
 

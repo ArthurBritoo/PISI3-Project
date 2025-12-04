@@ -13,6 +13,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 import json
 import os
+import joblib
 from PIL import Image
 
 # Configuração da página
@@ -94,6 +95,78 @@ def load_clustering_data():
     except Exception as e:
         st.error(f"Erro ao carregar dados de clusterização: {e}")
         return None, None
+
+@st.cache_resource
+def load_clustering_models():
+    """Carrega modelo KMeans e StandardScaler para predição de cluster"""
+    try:
+        kmeans = joblib.load('data/kmeans_model.joblib')
+        scaler = joblib.load('data/scaler.joblib')
+        with open('data/clustering_metadata.json', 'r') as f:
+            metadata = json.load(f)
+        features = metadata['features']
+        return kmeans, scaler, features
+    except Exception as e:
+        st.warning(f"Modelos de clusterização não encontrados: {e}")
+        return None, None, None
+
+def predict_cluster(area, ano, padrao, kmeans, scaler, features):
+    """
+    Prediz o cluster baseado nas características do imóvel.
+    
+    Args:
+        area: área construída em m²
+        ano: ano de construção
+        padrao: padrão de acabamento (user-friendly name)
+        kmeans: modelo KMeans treinado
+        scaler: StandardScaler treinado
+        features: lista de features usadas no treinamento
+    
+    Returns:
+        cluster_id: ID do cluster predito (0-4)
+    """
+    if kmeans is None or scaler is None:
+        return None
+    
+    # Mapear padrões user-friendly para valores do modelo
+    # Modelo foi treinado com: Simples, Médio, Superior
+    padrao_mapping = {
+        'Mínimo': 'Simples',
+        'Baixo': 'Simples',
+        'Normal': 'Médio',
+        'Médio-Alto': 'Médio',
+        'Alto': 'Superior'
+    }
+    padrao_model = padrao_mapping.get(padrao, 'Médio')
+    
+    # Criar DataFrame com as features base
+    input_data = pd.DataFrame({
+        'area_construida': [area],
+        'area_terreno': [area * 1.2],  # Estimativa: terreno ~20% maior
+        'ano_construcao': [ano]
+    })
+    
+    # Adicionar colunas one-hot encoded para padrao_acabamento
+    # Identificar as colunas de padrão presentes nas features
+    padrao_features = [f for f in features if f.startswith('padrao_acabamento_')]
+    
+    # Inicializar todas as colunas de padrão com 0
+    for pf in padrao_features:
+        input_data[pf] = 0
+    
+    # Ativar a coluna correspondente ao padrão selecionado
+    padrao_col = f'padrao_acabamento_{padrao_model}'
+    if padrao_col in input_data.columns:
+        input_data[padrao_col] = 1
+    
+    # Reordenar colunas para coincidir com features usadas no treinamento
+    input_data = input_data[features]
+    
+    # Normalizar e predizer
+    X_scaled = scaler.transform(input_data)
+    cluster_id = kmeans.predict(X_scaled)[0]
+    
+    return cluster_id
 
 @st.cache_data
 def load_summary_data():
@@ -1430,95 +1503,326 @@ elif page == "🧠 Explicabilidade SHAP":
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns([2, 1])
+    # Inputs interativos para o usuário
+    st.markdown("#### 🏘️ Configure as Características do Imóvel")
+    
+    col_input1, col_input2, col_input3 = st.columns(3)
+    
+    with col_input1:
+        selected_bairro = st.selectbox(
+            "📍 Bairro:",
+            options=['Boa Viagem', 'Recife', 'Espinheiro', 'Graças', 'Pina', 'Ilha do Leite', 
+                    'Casa Forte', 'Aflitos', 'Parnamirim', 'Torre', 'Casa Amarela', 'Madalena',
+                    'Santo Amaro', 'Encruzilhada', 'Zumbi', 'Imbiribeira', 'Ipsep', 'Cordeiro'],
+            index=0
+        )
+        
+        area_construida = st.number_input(
+            "📐 Área Construída (m²):",
+            min_value=20,
+            max_value=500,
+            value=120,
+            step=5,
+            help="Área em metros quadrados"
+        )
+    
+    with col_input2:
+        ano_construcao = st.slider(
+            "📅 Ano de Construção:",
+            min_value=1970,
+            max_value=2024,
+            value=2018,
+            step=1
+        )
+        
+        tipo_imovel = st.selectbox(
+            "🏠 Tipo de Imóvel:",
+            options=['Apartamento', 'Casa'],
+            index=0
+        )
+    
+    with col_input3:
+        padrao = st.selectbox(
+            "⭐ Padrão de Acabamento:",
+            options=['Alto', 'Médio-Alto', 'Normal', 'Baixo', 'Mínimo'],
+            index=0
+        )
+        
+        # Carregar modelos de clusterização
+        kmeans, scaler, features = load_clustering_models()
+        
+        # Predizer cluster automaticamente
+        if kmeans is not None and scaler is not None:
+            cluster_id = predict_cluster(area_construida, ano_construcao, padrao, kmeans, scaler, features)
+            # Nomes baseados na análise real dos clusters
+            # Cluster 0: Área média 98m², ano 2015, valor R$3,888/m² - Premium Novos
+            # Cluster 1: Área média 93m², ano 1981, valor R$2,383/m² - Antigos Econômicos
+            # Cluster 2: Área média 178m², ano 2013, valor R$4,076/m² - Grandes Premium
+            # Cluster 3: Área média 95m², ano 2005, valor R$3,022/m² - Médio Padrão
+            # Cluster 4: Área média 249m², ano 2008, valor R$4,049/m² - Luxury (grandes áreas)
+            cluster_names = {
+                0: 'Premium Novos',
+                1: 'Antigos Econômicos',
+                2: 'Grandes Premium',
+                3: 'Médio Padrão',
+                4: 'Luxury'
+            }
+            cluster_predicted = cluster_names.get(cluster_id, 'Médio')
+            st.info(f"🤖 **Cluster Predito:** {cluster_predicted} (Cluster {cluster_id})")
+        else:
+            cluster_predicted = 'Médio'
+            st.warning("⚠️ Modelo de clusterização não disponível. Execute `python clustering_analysis.py` primeiro.")
+    
+    # Criar dicionário com as informações
+    bairro_info = {
+        'area': area_construida,
+        'ano': ano_construcao,
+        'cluster': cluster_predicted,
+        'padrao': padrao,
+        'tipo': tipo_imovel
+    }
+    
+    col1, col2 = st.columns([1.5, 1])
     
     with col1:
-        # Exemplo de imóvel
-        st.markdown("""
-        <div class="insight-box">
-        <b>🏠 Imóvel Analisado:</b><br>
-        • Tipo: Apartamento<br>
-        • Área construída: 120 m²<br>
-        • Área terreno: 0 m² (apt)<br>
-        • Ano construção: 2018<br>
-        • Bairro: Boa Viagem<br>
-        • Cluster: Premium Novos<br>
-        • Padrão: Alto
+        # Card do imóvel configurado
+        st.markdown(f"""
+        <div style="background-color: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 1rem;">
+        <h3 style="margin: 0; color: white;">🏠 {bairro_info['tipo']} em {selected_bairro}</h3>
+        <hr style="border-color: rgba(255,255,255,0.15); margin: 1rem 0;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <p style="margin: 0.5rem 0;"><b>📐 Área construída:</b> {bairro_info['area']} m²</p>
+                <p style="margin: 0.5rem 0;"><b>📅 Ano construção:</b> {bairro_info['ano']}</p>
+                <p style="margin: 0.5rem 0;"><b>🏘️ Tipo:</b> {bairro_info['tipo']}</p>
+            </div>
+            <div>
+                <p style="margin: 0.5rem 0;"><b>📍 Localização:</b> {selected_bairro}</p>
+                <p style="margin: 0.5rem 0;"><b>🎯 Cluster:</b> {bairro_info['cluster']}</p>
+                <p style="margin: 0.5rem 0;"><b>⭐ Padrão:</b> {bairro_info['padrao']}</p>
+            </div>
+        </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Waterfall plot
-        contribution_data = pd.DataFrame({
-            'Feature': ['Base Value', 'area_construida\n(+120m²)', 'bairro\n(Boa Viagem)', 
-                       'ano_construcao\n(2018)', 'cluster\n(Premium)', 'padrao\n(Alto)', 'Prediction'],
-            'Value': [0.33, 0.28, 0.15, 0.08, 0.03, 0.00, 0.87]
-        })
+        # Calcular contribuições baseadas nas características do imóvel
+        base_value = 0.33
+        area_contrib = (bairro_info['area'] - 80) * 0.003  # 0.3% por m² acima de 80
         
+        # Contribuição do bairro baseada no cluster
+        cluster_mapping = {
+            'Premium': 0.15,
+            'Alto Padrão': 0.10,
+            'Médio-Alto': 0.05,
+            'Médio': 0.00,
+            'Entrada': -0.05,
+            'Popular': -0.10
+        }
+        bairro_contrib = cluster_mapping.get(bairro_info['cluster'], 0.00)
+        
+        ano_contrib = (bairro_info['ano'] - 2010) * 0.008  # 0.8% por ano após 2010
+        
+        # Contribuição do tipo de imóvel
+        tipo_contrib = 0.03 if bairro_info['tipo'] == 'Apartamento' else 0.00
+        
+        # Contribuição do padrão
+        padrao_mapping = {
+            'Alto': 0.08,
+            'Médio-Alto': 0.05,
+            'Normal': 0.00,
+            'Baixo': -0.03,
+            'Mínimo': -0.05
+        }
+        padrao_contrib = padrao_mapping.get(bairro_info['padrao'], 0.00)
+        
+        final_prob = min(0.99, max(0.01, base_value + area_contrib + bairro_contrib + ano_contrib + tipo_contrib + padrao_contrib))
+        
+        # Waterfall plot dinâmico (eixo Y invertido para melhor visualização)
         fig_waterfall = go.Figure(go.Waterfall(
-            x=contribution_data['Feature'],
-            y=[0.33, 0.28, 0.15, 0.08, 0.03, 0.00, 0],
+            orientation='h',
+            y=['Valor Base', f'Área ({bairro_info["area"]}m²)', f'Cluster ({bairro_info["cluster"]})', 
+               f'Ano ({bairro_info["ano"]})', f'Tipo ({bairro_info["tipo"]})', 
+               f'Padrão ({bairro_info["padrao"]})', 'Predição Final'],
+            x=[base_value, area_contrib, bairro_contrib, ano_contrib, tipo_contrib, padrao_contrib, 0],
             measure=['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'],
-            connector={"line": {"color": "rgb(63, 63, 63)"}},
-            decreasing={"marker": {"color": "#e74c3c"}},
-            increasing={"marker": {"color": "#2ecc71"}},
-            totals={"marker": {"color": "#3498db"}},
-            text=['+33%', '+28%', '+15%', '+8%', '+3%', '0%', '87%']
+            connector={"line": {"color": "rgba(150, 150, 150, 0.5)", "width": 1.5}},
+            decreasing={"marker": {"color": "rgba(200, 80, 80, 0.85)", "line": {"color": "rgba(180, 60, 60, 1)", "width": 1.5}}},
+            increasing={"marker": {"color": "rgba(80, 150, 120, 0.85)", "line": {"color": "rgba(60, 130, 100, 1)", "width": 1.5}}},
+            totals={"marker": {"color": "rgba(70, 130, 180, 0.85)", "line": {"color": "rgba(50, 110, 160, 1)", "width": 1.5}}},
+            text=[f'{base_value:.0%}', f'{area_contrib:+.0%}', f'{bairro_contrib:+.0%}', 
+                  f'{ano_contrib:+.0%}', f'{tipo_contrib:+.0%}', f'{padrao_contrib:+.0%}', f'{final_prob:.0%}'],
+            textposition='outside',
+            textfont={"size": 13, "color": "white", "family": "Arial"}
         ))
         
         fig_waterfall.update_layout(
-            title='Waterfall Plot - Contribuição das Features',
-            yaxis_title='Probabilidade Cumulativa (Alto Valor)',
-            xaxis_tickangle=-45,
-            height=500
+            title={
+                'text': f'Waterfall Plot - Contribuição das Features para {selected_bairro}',
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'color': 'white', 'family': 'Arial'}
+            },
+            xaxis_title='Probabilidade Cumulativa',
+            height=500,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white', size=12, family='Arial'),
+            xaxis=dict(
+                gridcolor='rgba(200,200,200,0.2)',
+                tickformat='.0%',
+                zeroline=True,
+                zerolinecolor='rgba(200,200,200,0.3)',
+                zerolinewidth=1
+            ),
+            yaxis=dict(
+                gridcolor='rgba(200,200,200,0.1)',
+                autorange='reversed'
+            ),
+            margin=dict(l=20, r=100, t=60, b=50)
         )
         
         st.plotly_chart(fig_waterfall, use_container_width=True)
     
     with col2:
-        st.markdown("#### Probabilidades Finais")
+        st.markdown("#### 📊 Probabilidades Finais")
+        
+        # Calcular probabilidades das 3 categorias
+        prob_alto = final_prob
+        prob_medio = (1 - final_prob) * 0.7
+        prob_economico = (1 - final_prob) * 0.3
         
         probs = pd.DataFrame({
             'Categoria': ['Alto Valor', 'Médio', 'Econômico'],
-            'Probabilidade': [0.87, 0.10, 0.03]
+            'Probabilidade': [prob_alto, prob_medio, prob_economico]
         })
         
-        fig_prob = px.bar(
-            probs,
-            x='Probabilidade',
-            y='Categoria',
-            orientation='h',
-            text=probs['Probabilidade'].apply(lambda x: f'{x:.0%}'),
-            title='Distribuição de Probabilidades',
-            color='Probabilidade',
-            color_continuous_scale='Greens'
+        fig_prob = go.Figure()
+        
+        # Escala de cinza profissional
+        colors = ['rgba(180,180,180,0.8)', 'rgba(140,140,140,0.8)', 'rgba(100,100,100,0.8)']
+        for i, row in probs.iterrows():
+            fig_prob.add_trace(go.Bar(
+                x=[row['Probabilidade']],
+                y=[row['Categoria']],
+                orientation='h',
+                name=row['Categoria'],
+                marker=dict(color=colors[i], line=dict(color='rgba(255,255,255,0.3)', width=1)),
+                text=f"{row['Probabilidade']:.0%}",
+                textposition='outside',
+                textfont=dict(size=14, color='white', family='Arial'),
+                hovertemplate=f"<b>{row['Categoria']}</b><br>Probabilidade: {row['Probabilidade']:.1%}<extra></extra>"
+            ))
+        
+        fig_prob.update_layout(
+            title={'text': 'Distribuição de Probabilidades', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 16, 'color': 'white', 'family': 'Arial'}},
+            showlegend=False,
+            height=320,
+            xaxis=dict(range=[0, 1], tickformat='.0%', gridcolor='rgba(200,200,200,0.15)', color='white'),
+            yaxis=dict(color='white'),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white', family='Arial'),
+            margin=dict(l=10, r=80, t=50, b=10)
         )
-        fig_prob.update_layout(showlegend=False, height=300)
-        fig_prob.update_traces(textposition='outside')
+        
         st.plotly_chart(fig_prob, use_container_width=True)
         
-        st.markdown("""
-        <div class="insight-box">
-        <b>🎯 Predição:</b><br>
-        <span style="color: green; font-weight: bold; font-size: 1.2em;">Alto Valor</span><br><br>
+        # Card de predição
+        categoria_pred = 'Alto Valor' if prob_alto > 0.6 else ('Médio' if prob_medio > prob_economico else 'Econômico')
         
-        <b>Confiança: 87%</b><br><br>
-        
-        Fatores decisivos:<br>
-        1. Área de 120 m² (+28%)<br>
-        2. Localização premium (+15%)<br>
-        3. Construção recente (+8%)
+        st.markdown(f"""
+        <div style="background: rgba(50,50,50,0.3); padding: 1.5rem; border-radius: 10px; border: 1px solid rgba(150,150,150,0.3); margin-top: 1rem;">
+        <h4 style="margin: 0; color: #333; font-weight: 500;">🎯 Predição Final</h4>
+        <hr style="border-color: rgba(150,150,150,0.3); margin: 0.8rem 0;">
+        <p style="font-size: 1.6em; font-weight: 500; margin: 0.5rem 0; color: #333;">{categoria_pred}</p>
+        <p style="font-size: 1.1em; margin: 0.5rem 0; color: #555;"><b>Confiança:</b> {final_prob:.0%}</p>
+        <hr style="border-color: rgba(150,150,150,0.3); margin: 0.8rem 0;">
+        <p style="margin: 0.3rem 0; font-size: 0.95em; color: #555;"><b>Bairro:</b> {selected_bairro}</p>
+        <p style="margin: 0.3rem 0; font-size: 0.95em; color: #555;"><b>Área:</b> {bairro_info['area']} m²</p>
+        <p style="margin: 0.3rem 0; font-size: 0.95em; color: #555;"><b>Ano:</b> {bairro_info['ano']}</p>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Fatores decisivos
+        st.markdown("""
+        <div style="background-color: rgba(50,50,50,0.3); padding: 1rem; border-radius: 10px; border: 1px solid rgba(150,150,150,0.3); margin-top: 1rem;">
+        <h5 style="color: #333; margin-top: 0; font-weight: 500;">Fatores Decisivos:</h5>
+        """, unsafe_allow_html=True)
+        
+        fatores = [
+            (f"Área ({bairro_info['area']}m²)", abs(area_contrib)),
+            (f"Cluster ({bairro_info['cluster']})", abs(bairro_contrib)),
+            (f"Ano ({bairro_info['ano']})", abs(ano_contrib)),
+            (f"Tipo ({bairro_info['tipo']})", abs(tipo_contrib)),
+            (f"Padrão ({bairro_info['padrao']})", abs(padrao_contrib))
+        ]
+        fatores_sorted = sorted(fatores, key=lambda x: x[1], reverse=True)
+        
+        for i, (fator, contrib) in enumerate(fatores_sorted[:3], 1):
+            sinal = "+" if contrib > 0 else ""
+            st.markdown(f"<p style='color: #555; margin: 0.3rem 0;'>{i}. {fator}: <b>{sinal}{contrib:.0%}</b></p>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("""
+    # Interpretação dinâmica baseada nos valores reais
+    interpretacao_area = ""
+    if area_contrib > 0.1:
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área grande aumenta significativamente a chance de ser Alto Valor"
+    elif area_contrib > 0:
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área contribui positivamente para o valor"
+    elif area_contrib < -0.05:
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área pequena reduz a chance de ser Alto Valor"
+    else:
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área tem impacto neutro"
+    
+    interpretacao_cluster = ""
+    if bairro_contrib > 0.05:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster premium contribui fortemente"
+    elif bairro_contrib > 0:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster contribui positivamente"
+    elif bairro_contrib < 0:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster reduz a probabilidade de Alto Valor"
+    else:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster tem impacto neutro"
+    
+    interpretacao_ano = ""
+    if ano_contrib > 0.05:
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Imóvel novo adiciona valor significativo"
+    elif ano_contrib > 0:
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Construção recente contribui positivamente"
+    elif ano_contrib < -0.05:
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Imóvel antigo reduz o valor"
+    else:
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Ano tem impacto neutro"
+    
+    interpretacao_tipo = ""
+    if tipo_contrib > 0:
+        interpretacao_tipo = f"<b>Tipo {bairro_info['tipo']} ({tipo_contrib:+.0%}):</b> Tipo de imóvel contribui positivamente"
+    else:
+        interpretacao_tipo = f"<b>Tipo {bairro_info['tipo']} ({tipo_contrib:+.0%}):</b> Tipo tem impacto neutro"
+    
+    interpretacao_padrao = ""
+    if padrao_contrib > 0.05:
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão alto reforça fortemente a categoria"
+    elif padrao_contrib > 0:
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão contribui positivamente"
+    elif padrao_contrib < -0.03:
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão baixo reduz a probabilidade de Alto Valor"
+    else:
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão tem impacto neutro"
+    
+    categoria_final = 'Alto Valor' if final_prob > 0.6 else ('Médio' if final_prob > 0.4 else 'Econômico')
+    
+    st.markdown(f"""
     <div class="insight-box">
     <b>📊 Interpretação do Waterfall:</b><br>
-    • <b>Base Value (33%):</b> Probabilidade inicial antes de considerar features específicas<br>
-    • <b>area_construida (+28%):</b> 120 m² aumenta drasticamente a chance de ser Alto Valor<br>
-    • <b>bairro Boa Viagem (+15%):</b> Localização premium contribui fortemente<br>
-    • <b>ano_construcao 2018 (+8%):</b> Imóvel novo adiciona valor<br>
-    • <b>cluster Premium (+3%):</b> Pertencer ao cluster 0 reforça a categoria<br>
-    • <b>Resultado Final: 87%</b> de probabilidade de ser Alto Valor
+    • <b>Base Value ({base_value:.0%}):</b> Probabilidade inicial antes de considerar características específicas<br>
+    • {interpretacao_area}<br>
+    • {interpretacao_cluster}<br>
+    • {interpretacao_ano}<br>
+    • {interpretacao_tipo}<br>
+    • {interpretacao_padrao}<br>
+    • <b>Resultado Final: {final_prob:.0%}</b> de probabilidade de ser <b>{categoria_final}</b>
     </div>
     """, unsafe_allow_html=True)
     
