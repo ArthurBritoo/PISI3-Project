@@ -110,6 +110,20 @@ def load_clustering_models():
         st.warning(f"Modelos de clusterização não encontrados: {e}")
         return None, None, None
 
+@st.cache_resource
+def load_classifier_model():
+    """Carrega o modelo de classificação RandomForest treinado"""
+    try:
+        model = joblib.load('property_classifier_model_optimized.joblib')
+        return model
+    except FileNotFoundError:
+        try:
+            model = joblib.load('deploy/property_classifier_model_optimized2.joblib')
+            return model
+        except FileNotFoundError:
+            st.error("Modelo de classificação não encontrado. Execute classification_model.py primeiro.")
+            return None
+
 def predict_cluster(area, ano, padrao, kmeans, scaler, features):
     """
     Prediz o cluster baseado nas características do imóvel.
@@ -1605,52 +1619,109 @@ elif page == "🧠 Explicabilidade SHAP":
         </div>
         """, unsafe_allow_html=True)
         
-        # Calcular contribuições baseadas nas características do imóvel
-        base_value = 0.33
-        area_contrib = (bairro_info['area'] - 80) * 0.003  # 0.3% por m² acima de 80
+        # Carregar modelo de classificação para predições reais
+        classifier_model = load_classifier_model()
         
-        # Contribuição do bairro baseada no cluster
-        cluster_mapping = {
-            'Premium': 0.15,
-            'Alto Padrão': 0.10,
-            'Médio-Alto': 0.05,
-            'Médio': 0.00,
-            'Entrada': -0.05,
-            'Popular': -0.10
+        if classifier_model is None:
+            st.error("Não foi possível carregar o modelo de classificação.")
+            st.stop()
+        
+        # Mapear padrão user-friendly para valor do modelo
+        padrao_mapping_model = {
+            'Alto': 'Superior',
+            'Médio-Alto': 'Médio',
+            'Normal': 'Médio',
+            'Baixo': 'Simples',
+            'Mínimo': 'Simples'
         }
-        bairro_contrib = cluster_mapping.get(bairro_info['cluster'], 0.00)
+        padrao_model_value = padrao_mapping_model.get(bairro_info['padrao'], 'Médio')
         
-        ano_contrib = (bairro_info['ano'] - 2010) * 0.008  # 0.8% por ano após 2010
-        
-        # Contribuição do tipo de imóvel
-        tipo_contrib = 0.03 if bairro_info['tipo'] == 'Apartamento' else 0.00
-        
-        # Contribuição do padrão
-        padrao_mapping = {
-            'Alto': 0.08,
-            'Médio-Alto': 0.05,
-            'Normal': 0.00,
-            'Baixo': -0.03,
-            'Mínimo': -0.05
+        # Mapear cluster name para número
+        cluster_name_to_num = {
+            'Premium Novos': 0,
+            'Antigos Econômicos': 1,
+            'Grandes Premium': 2,
+            'Médio Padrão': 3,
+            'Luxury': 4
         }
-        padrao_contrib = padrao_mapping.get(bairro_info['padrao'], 0.00)
+        cluster_num = cluster_name_to_num.get(bairro_info['cluster'], 3)
         
-        final_prob = min(0.99, max(0.01, base_value + area_contrib + bairro_contrib + ano_contrib + tipo_contrib + padrao_contrib))
+        # Criar DataFrame com as features para o modelo
+        input_data = pd.DataFrame({
+            'area_construida': [bairro_info['area']],
+            'area_terreno': [bairro_info['area'] * 1.5],  # Estimativa
+            'ano_construcao': [bairro_info['ano']],
+            'padrao_acabamento': [padrao_model_value],
+            'cluster': [cluster_num],
+            'bairro': [selected_bairro],
+            'tipo_imovel': [bairro_info['tipo']]
+        })
+        
+        # Fazer predição com o modelo
+        prediction = classifier_model.predict(input_data)[0]
+        probabilities = classifier_model.predict_proba(input_data)[0]
+        classes = classifier_model.classes_
+        
+        # Pegar a probabilidade da classe prevista
+        pred_idx = list(classes).index(prediction)
+        final_prob = probabilities[pred_idx]
+        
+        # Obter importâncias de features do modelo (acessar o RandomForest dentro do Pipeline)
+        try:
+            # Se for Pipeline, pegar o último step (classificador)
+            if hasattr(classifier_model, 'named_steps'):
+                rf_model = classifier_model.named_steps['classifier']
+                feature_names = classifier_model.feature_names_in_
+                feature_importances = rf_model.feature_importances_
+            else:
+                # Se for modelo direto
+                feature_names = classifier_model.feature_names_in_
+                feature_importances = classifier_model.feature_importances_
+            
+            # Criar dicionário de importâncias
+            importance_dict = dict(zip(feature_names, feature_importances))
+            
+            # Calcular contribuições aproximadas baseadas nas importâncias
+            base_value = 1.0 / len(classes)  # Probabilidade base uniforme
+            
+            # Normalizar contribuições para que somem à probabilidade final
+            area_importance = importance_dict.get('area_construida', 0.2)
+            cluster_importance = importance_dict.get('cluster', 0.15)
+            ano_importance = importance_dict.get('ano_construcao', 0.15)
+            padrao_importance = importance_dict.get('padrao_acabamento', 0.15)
+        except Exception as e:
+            # Fallback: usar valores padrão se não conseguir acessar importâncias
+            st.warning(f"Usando importâncias padrão: {e}")
+            base_value = 1.0 / len(classes)
+            area_importance = 0.25
+            cluster_importance = 0.20
+            ano_importance = 0.15
+            padrao_importance = 0.15
+        
+        # Calcular contribuições ponderadas
+        total_importance = area_importance + cluster_importance + ano_importance + padrao_importance
+        if total_importance > 0:
+            prob_diff = final_prob - base_value
+            area_contrib = (area_importance / total_importance) * prob_diff
+            cluster_contrib = (cluster_importance / total_importance) * prob_diff
+            ano_contrib = (ano_importance / total_importance) * prob_diff
+            padrao_contrib = (padrao_importance / total_importance) * prob_diff
+        else:
+            area_contrib = cluster_contrib = ano_contrib = padrao_contrib = 0
         
         # Waterfall plot dinâmico (eixo Y invertido para melhor visualização)
         fig_waterfall = go.Figure(go.Waterfall(
             orientation='h',
             y=['Valor Base', f'Área ({bairro_info["area"]}m²)', f'Cluster ({bairro_info["cluster"]})', 
-               f'Ano ({bairro_info["ano"]})', f'Tipo ({bairro_info["tipo"]})', 
-               f'Padrão ({bairro_info["padrao"]})', 'Predição Final'],
-            x=[base_value, area_contrib, bairro_contrib, ano_contrib, tipo_contrib, padrao_contrib, 0],
-            measure=['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'],
+               f'Ano ({bairro_info["ano"]})', f'Padrão ({bairro_info["padrao"]})', 'Predição Final'],
+            x=[base_value, area_contrib, cluster_contrib, ano_contrib, padrao_contrib, 0],
+            measure=['absolute', 'relative', 'relative', 'relative', 'relative', 'total'],
             connector={"line": {"color": "rgba(150, 150, 150, 0.5)", "width": 1.5}},
             decreasing={"marker": {"color": "rgba(200, 80, 80, 0.85)", "line": {"color": "rgba(180, 60, 60, 1)", "width": 1.5}}},
             increasing={"marker": {"color": "rgba(80, 150, 120, 0.85)", "line": {"color": "rgba(60, 130, 100, 1)", "width": 1.5}}},
             totals={"marker": {"color": "rgba(70, 130, 180, 0.85)", "line": {"color": "rgba(50, 110, 160, 1)", "width": 1.5}}},
-            text=[f'{base_value:.0%}', f'{area_contrib:+.0%}', f'{bairro_contrib:+.0%}', 
-                  f'{ano_contrib:+.0%}', f'{tipo_contrib:+.0%}', f'{padrao_contrib:+.0%}', f'{final_prob:.0%}'],
+            text=[f'{base_value:.0%}', f'{area_contrib:+.0%}', f'{cluster_contrib:+.0%}', 
+                  f'{ano_contrib:+.0%}', f'{padrao_contrib:+.0%}', f'{final_prob:.0%}'],
             textposition='outside',
             textfont={"size": 13, "color": "white", "family": "Arial"}
         ))
@@ -1686,15 +1757,14 @@ elif page == "🧠 Explicabilidade SHAP":
     with col2:
         st.markdown("#### 📊 Probabilidades Finais")
         
-        # Calcular probabilidades das 3 categorias
-        prob_alto = final_prob
-        prob_medio = (1 - final_prob) * 0.7
-        prob_economico = (1 - final_prob) * 0.3
+        # Usar as probabilidades reais do modelo para todas as classes
+        probs_dict = {cls: prob for cls, prob in zip(classes, probabilities)}
         
+        # Criar DataFrame ordenado por probabilidade
         probs = pd.DataFrame({
-            'Categoria': ['Alto Valor', 'Médio', 'Econômico'],
-            'Probabilidade': [prob_alto, prob_medio, prob_economico]
-        })
+            'Categoria': list(probs_dict.keys()),
+            'Probabilidade': list(probs_dict.values())
+        }).sort_values('Probabilidade', ascending=False)
         
         fig_prob = go.Figure()
         
@@ -1727,14 +1797,12 @@ elif page == "🧠 Explicabilidade SHAP":
         
         st.plotly_chart(fig_prob, use_container_width=True)
         
-        # Card de predição
-        categoria_pred = 'Alto Valor' if prob_alto > 0.6 else ('Médio' if prob_medio > prob_economico else 'Econômico')
-        
+        # Card de predição com a categoria real prevista pelo modelo
         st.markdown(f"""
         <div style="background: rgba(50,50,50,0.3); padding: 1.5rem; border-radius: 10px; border: 1px solid rgba(150,150,150,0.3); margin-top: 1rem;">
         <h4 style="margin: 0; color: #333; font-weight: 500;">🎯 Predição Final</h4>
         <hr style="border-color: rgba(150,150,150,0.3); margin: 0.8rem 0;">
-        <p style="font-size: 1.6em; font-weight: 500; margin: 0.5rem 0; color: #333;">{categoria_pred}</p>
+        <p style="font-size: 1.6em; font-weight: 500; margin: 0.5rem 0; color: #333;">{prediction}</p>
         <p style="font-size: 1.1em; margin: 0.5rem 0; color: #555;"><b>Confiança:</b> {final_prob:.0%}</p>
         <hr style="border-color: rgba(150,150,150,0.3); margin: 0.8rem 0;">
         <p style="margin: 0.3rem 0; font-size: 0.95em; color: #555;"><b>Bairro:</b> {selected_bairro}</p>
@@ -1743,7 +1811,7 @@ elif page == "🧠 Explicabilidade SHAP":
         </div>
         """, unsafe_allow_html=True)
         
-        # Fatores decisivos
+        # Fatores decisivos baseados nas importâncias do modelo
         st.markdown("""
         <div style="background-color: rgba(50,50,50,0.3); padding: 1rem; border-radius: 10px; border: 1px solid rgba(150,150,150,0.3); margin-top: 1rem;">
         <h5 style="color: #333; margin-top: 0; font-weight: 500;">Fatores Decisivos:</h5>
@@ -1751,9 +1819,9 @@ elif page == "🧠 Explicabilidade SHAP":
         
         fatores = [
             (f"Área ({bairro_info['area']}m²)", abs(area_contrib)),
-            (f"Cluster ({bairro_info['cluster']})", abs(bairro_contrib)),
+            (f"Cluster ({bairro_info['cluster']})", abs(cluster_contrib)),
             (f"Ano ({bairro_info['ano']})", abs(ano_contrib)),
-            (f"Tipo ({bairro_info['tipo']})", abs(tipo_contrib)),
+            (f"Padrão ({bairro_info['padrao']})", abs(padrao_contrib)),
             (f"Padrão ({bairro_info['padrao']})", abs(padrao_contrib))
         ]
         fatores_sorted = sorted(fatores, key=lambda x: x[1], reverse=True)
@@ -1764,65 +1832,57 @@ elif page == "🧠 Explicabilidade SHAP":
         
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # Interpretação dinâmica baseada nos valores reais
+    # Interpretação dinâmica baseada nas contribuições do modelo
     interpretacao_area = ""
-    if area_contrib > 0.1:
-        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área grande aumenta significativamente a chance de ser Alto Valor"
+    if area_contrib > 0.05:
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área grande aumenta significativamente a chance de ser {prediction}"
     elif area_contrib > 0:
-        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área contribui positivamente para o valor"
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área contribui positivamente para {prediction}"
     elif area_contrib < -0.05:
-        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área pequena reduz a chance de ser Alto Valor"
+        interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área pequena reduz a chance de ser {prediction}"
     else:
         interpretacao_area = f"<b>Área ({bairro_info['area']}m²) ({area_contrib:+.0%}):</b> Área tem impacto neutro"
     
     interpretacao_cluster = ""
-    if bairro_contrib > 0.05:
-        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster premium contribui fortemente"
-    elif bairro_contrib > 0:
-        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster contribui positivamente"
-    elif bairro_contrib < 0:
-        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster reduz a probabilidade de Alto Valor"
+    if cluster_contrib > 0.05:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({cluster_contrib:+.0%}):</b> Cluster contribui fortemente para {prediction}"
+    elif cluster_contrib > 0:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({cluster_contrib:+.0%}):</b> Cluster contribui positivamente"
+    elif cluster_contrib < -0.05:
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({cluster_contrib:+.0%}):</b> Cluster reduz a probabilidade de {prediction}"
     else:
-        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({bairro_contrib:+.0%}):</b> Cluster tem impacto neutro"
+        interpretacao_cluster = f"<b>Cluster {bairro_info['cluster']} ({cluster_contrib:+.0%}):</b> Cluster tem impacto neutro"
     
     interpretacao_ano = ""
     if ano_contrib > 0.05:
-        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Imóvel novo adiciona valor significativo"
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Construção recente adiciona valor para {prediction}"
     elif ano_contrib > 0:
-        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Construção recente contribui positivamente"
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Ano contribui positivamente"
     elif ano_contrib < -0.05:
-        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Imóvel antigo reduz o valor"
+        interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Imóvel antigo reduz chance de {prediction}"
     else:
         interpretacao_ano = f"<b>Ano {bairro_info['ano']} ({ano_contrib:+.0%}):</b> Ano tem impacto neutro"
     
-    interpretacao_tipo = ""
-    if tipo_contrib > 0:
-        interpretacao_tipo = f"<b>Tipo {bairro_info['tipo']} ({tipo_contrib:+.0%}):</b> Tipo de imóvel contribui positivamente"
-    else:
-        interpretacao_tipo = f"<b>Tipo {bairro_info['tipo']} ({tipo_contrib:+.0%}):</b> Tipo tem impacto neutro"
-    
     interpretacao_padrao = ""
     if padrao_contrib > 0.05:
-        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão alto reforça fortemente a categoria"
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão alto reforça fortemente a predição de {prediction}"
     elif padrao_contrib > 0:
         interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão contribui positivamente"
     elif padrao_contrib < -0.03:
-        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão baixo reduz a probabilidade de Alto Valor"
+        interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão baixo reduz a probabilidade de {prediction}"
     else:
         interpretacao_padrao = f"<b>Padrão {bairro_info['padrao']} ({padrao_contrib:+.0%}):</b> Padrão tem impacto neutro"
     
-    categoria_final = 'Alto Valor' if final_prob > 0.6 else ('Médio' if final_prob > 0.4 else 'Econômico')
-    
     st.markdown(f"""
     <div class="insight-box">
-    <b>📊 Interpretação do Waterfall:</b><br>
-    • <b>Base Value ({base_value:.0%}):</b> Probabilidade inicial antes de considerar características específicas<br>
+    <b>📊 Interpretação do Waterfall (Modelo Real):</b><br>
+    • <b>Base Value ({base_value:.0%}):</b> Probabilidade inicial uniforme entre as classes<br>
     • {interpretacao_area}<br>
     • {interpretacao_cluster}<br>
     • {interpretacao_ano}<br>
-    • {interpretacao_tipo}<br>
     • {interpretacao_padrao}<br>
-    • <b>Resultado Final: {final_prob:.0%}</b> de probabilidade de ser <b>{categoria_final}</b>
+    • <b>Resultado Final: {final_prob:.0%}</b> de confiança na predição de <b>{prediction}</b><br>
+    <i style="font-size: 0.9em; color: #888;">Probabilidades calculadas usando o modelo RandomForest treinado</i>
     </div>
     """, unsafe_allow_html=True)
     
