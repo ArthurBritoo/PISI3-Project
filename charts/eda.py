@@ -8,7 +8,7 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-from data_processing import load_and_preprocess_data
+from deploy.data_processing_for_deploy import load_and_preprocess_data
 from charts.charts import (
     plot_valor_m2_por_bairro,
     plot_valor_transacao_por_acabamento,
@@ -21,8 +21,9 @@ st.set_page_config(layout="wide", page_title="Análise ITBI Recife")
 
 @st.cache_data
 def get_data():
-    # A função load_and_preprocess_data já busca os dados do diretório correto
-    return load_and_preprocess_data()
+    base_dir = os.path.dirname(__file__)
+    data_dir = os.path.join(base_dir, "data")
+    return load_and_preprocess_data(data_dir=data_dir)
 
 df = get_data()
 

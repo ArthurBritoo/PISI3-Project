@@ -1,3 +1,21 @@
+"""
+MODELO DE CLASSIFICAÇÃO DE IMÓVEIS - OTIMIZADO PARA SUPABASE (<50MB)
+
+Este módulo treina um modelo de classificação Random Forest otimizado para
+classificar imóveis em categorias de valor (Econômico, Médio, Alto Valor).
+
+OTIMIZAÇÕES PARA REDUÇÃO DE TAMANHO:
+1. Dados limitados a transações de 2020-2023 (via data_processing.py)
+2. Hiperparâmetros reduzidos:
+   - n_estimators: 50-100 (menos árvores)
+   - max_depth: 8-15 (árvores mais rasas)
+   - min_samples_split: 5-10 (nós maiores)
+   - min_samples_leaf: 2-4 (folhas maiores)
+3. Verificação automática de tamanho do modelo
+
+Objetivo: Gerar modelo < 50MB para compatibilidade com Supabase storage
+"""
+
 import pandas as pd
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
@@ -59,12 +77,15 @@ def train_classification_model(df):
     pipeline = Pipeline(steps=[('preprocessor', preprocessor), ('classifier', RandomForestClassifier(random_state=42, n_jobs=-1))])
 
     # 2. DEFINIR GRADE DE HIPERPARÂMETROS PARA O GRIDSEARCH
-    # Nota: A grade está pequena para uma execução mais rápida.
-    # Para uma busca exaustiva, aumente o número de opções.
+    # OTIMIZADO: Parâmetros reduzidos para gerar modelo < 50MB (compatível com Supabase)
+    # - Menos árvores (50-100 ao invés de 100-200)
+    # - Profundidade limitada (8-15 ao invés de 10-20-None)
+    # - Mais amostras mínimas para split (reduz complexidade)
     param_grid = {
-        'classifier__n_estimators': [100, 200],         # Número de árvores
-        'classifier__max_depth': [10, 20, None],       # Profundidade máxima
-        'classifier__min_samples_split': [2, 5]        # Mínimo de amostras para dividir
+        'classifier__n_estimators': [50, 100],          # Número de árvores reduzido
+        'classifier__max_depth': [8, 15],               # Profundidade limitada
+        'classifier__min_samples_split': [5, 10],       # Mais amostras por split
+        'classifier__min_samples_leaf': [2, 4]          # Folhas maiores = árvores menores
     }
 
     # 3. CONFIGURAR E EXECUTAR O GRIDSEARCHCV
@@ -98,22 +119,29 @@ def train_classification_model(df):
     print(report)
 
     # Matriz de Confusão com Plotly
-    import os
     cm = confusion_matrix(y_test, y_pred, labels=best_model.classes_)
     fig = ff.create_annotated_heatmap(z=cm[::-1], x=list(best_model.classes_), y=list(best_model.classes_)[::-1], colorscale='Blues', showscale=True)
     fig.update_layout(title_text='Matriz de Confusão (Modelo Otimizado)', xaxis_title='Previsto', yaxis_title='Verdadeiro')
-    
-    # Salvar na pasta docs
-    docs_dir = os.path.join(os.getcwd(), 'docs')
-    os.makedirs(docs_dir, exist_ok=True)
-    output_file = os.path.join(docs_dir, 'confusion_matrix_optimized.html')
-    pio.write_html(fig, output_file)
-    print(f"\nMatriz de confusão interativa salva em '{output_file}'")
+    pio.write_html(fig, 'confusion_matrix_optimized.html')
+    print("\nMatriz de confusão interativa salva em 'confusion_matrix_optimized.html'")
 
     # Salvar o modelo otimizado
-    model_filename = os.path.join(os.getcwd(), 'property_classifier_model_optimized.joblib')
+    model_filename = 'property_classifier_model_optimized.joblib'
     joblib.dump(best_model, model_filename)
-    print(f"Modelo OTIMIZADO salvo em: {model_filename}")
+    
+    # Verificar tamanho do modelo
+    import os
+    model_size_bytes = os.path.getsize(model_filename)
+    model_size_mb = model_size_bytes / (1024 * 1024)
+    
+    print(f"\nModelo OTIMIZADO salvo em: {model_filename}")
+    print(f"📦 Tamanho do modelo: {model_size_mb:.2f} MB")
+    
+    if model_size_mb > 50:
+        print(f"⚠️  AVISO: Modelo ainda está acima de 50 MB (limite do Supabase)")
+        print(f"   Considere reduzir ainda mais os hiperparâmetros ou o período de dados")
+    else:
+        print(f"✅ Modelo está abaixo do limite de 50 MB do Supabase!")
 
     return best_model
 

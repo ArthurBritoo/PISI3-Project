@@ -15,7 +15,7 @@ from PIL import Image
 import streamlit.components.v1 as components
 
 # Importações dos scripts locais
-from data_processing import load_and_preprocess_data
+from deploy.data_processing_for_deploy import load_and_preprocess_data
 from clustering_analysis import get_clustering_data_optimized, create_cluster_visualizations
 from data.geo_clustering import build_regions_for_recife
 

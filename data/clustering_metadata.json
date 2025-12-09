@@ -1,1 +1,1 @@
-{"silhouette_score": 0.5149653952413429, "features": ["area_construida", "area_terreno", "ano_construcao", "padrao_acabamento_M\u00e9dio", "padrao_acabamento_Simples", "padrao_acabamento_Superior"], "n_clusters": 5, "total_records": 42341}
+{"silhouette_score": 0.5149653952413339, "features": ["area_construida", "area_terreno", "ano_construcao", "padrao_acabamento_M\u00e9dio", "padrao_acabamento_Simples", "padrao_acabamento_Superior"], "n_clusters": 5, "total_records": 42341}

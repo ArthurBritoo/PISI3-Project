@@ -7,7 +7,7 @@ import os
 
 # Importar funções de preparação de dados dos scripts anteriores
 from clustering_analysis import get_clustering_data_optimized
-from classification_model import create_classification_target
+from deploy.classification_model_for_deploy import create_classification_target
 
 def generate_shap_explanations():
     """
@@ -57,15 +57,19 @@ def generate_shap_explanations():
     class_names = best_model.classes_
 
     # 5. GERAR E SALVAR GRÁFICOS DE EXPLICAÇÃO GLOBAL
+    # Criar pasta docs se não existir
+    docs_dir = 'docs'
+    os.makedirs(docs_dir, exist_ok=True)
+    
     # Gráfico de Barras (Feature Importance Global)
     print("Gerando gráfico de barras de importância das features...")
     plt.figure()
     # A nova API usa o objeto shap_values_obj diretamente
     shap.summary_plot(shap_values_obj, plot_type="bar", feature_names=X_test_sample.columns, class_names=class_names, show=False)
     plt.title("Importância Global das Features (SHAP)")
-    plt.savefig('shap_summary_bar.png', bbox_inches='tight')
+    plt.savefig(os.path.join(docs_dir, 'shap_summary_bar.png'), bbox_inches='tight')
     plt.close()
-    print("Gráfico salvo em: shap_summary_bar.png")
+    print(f"Gráfico salvo em: {os.path.join(docs_dir, 'shap_summary_bar.png')}")
 
     # Gráfico Beeswarm (Distribuição do Impacto das Features)
     print("Gerando gráficos beeswarm...")
@@ -75,9 +79,9 @@ def generate_shap_explanations():
         plt.figure()
         shap.summary_plot(shap_values_obj[:, :, i], features=X_test_sample, show=False)
         plt.title(f'Impacto das Features na Classe: {class_name}')
-        plt.savefig(f'shap_summary_beeswarm_{class_name}.png', bbox_inches='tight')
+        plt.savefig(os.path.join(docs_dir, f'shap_summary_beeswarm_{class_name}.png'), bbox_inches='tight')
         plt.close()
-    print("Gráficos beeswarm salvos em: PISI3-Project/") # Gráfico SHAP: Importância por classe (Multiclasse Bar Plot)
+    print(f"Gráficos beeswarm salvos em: {docs_dir}/") # Gráfico SHAP: Importância por classe (Multiclasse Bar Plot)
     print("Gerando Gráfico de Importância por Classe (Barra Multiclasse)...")
     try:
         plt.figure(figsize=(12, 8)) 
@@ -93,11 +97,11 @@ def generate_shap_explanations():
         plt.title("Importância das Features Segmentada por Classe (SHAP)")
         # Salva o gráfico com o novo nome
         plt.savefig(
-            os.path.join('PISI3-Project/shap_summary_bar_multiclass.png'),
+            os.path.join(docs_dir, 'shap_summary_bar_multiclass.png'),
             bbox_inches='tight'
         )
         plt.close()
-        print(f"NOVO Gráfico 'shap_summary_bar_multiclass.png' gerado e salvo em: PISI3-Project/shap_summary_bar_multiclass.png")
+        print(f"NOVO Gráfico 'shap_summary_bar_multiclass.png' gerado e salvo em: {os.path.join(docs_dir, 'shap_summary_bar_multiclass.png')}")
 
     except Exception as e:
         print(f"Erro ao gerar o gráfico de barras multiclasse SHAP: {e}")
@@ -113,8 +117,8 @@ def generate_shap_explanations():
     force_plot = shap.force_plot(shap_values_obj[0, :, predicted_class_index], matplotlib=False)
     
     # Salvar o gráfico de força como um arquivo HTML
-    shap.save_html('shap_force_plot_local.html', force_plot)
-    print("Gráfico de força local salvo em: shap_force_plot_local.html")
+    shap.save_html(os.path.join(docs_dir, 'shap_force_plot_local.html'), force_plot)
+    print(f"Gráfico de força local salvo em: {os.path.join(docs_dir, 'shap_force_plot_local.html')}")
 
     # 7. SALVAR ARTEFATOS SHAP PARA O DASHBOARD
     print("\nSalvando artefatos SHAP para uso no dashboard...")
