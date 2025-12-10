@@ -1,0 +1,307 @@
+{
+  "clustering": {
+    "cluster_stats": [
+      {
+        "cluster_id": 0,
+        "total_imoveis": 15991,
+        "percentual": 37.767176023239884,
+        "valor_m2_mediano": 3887.64700165225,
+        "valor_m2_medio": 3971.548838922793,
+        "area_construida_mediana": 98.08,
+        "area_construida_media": 105.90685197923833,
+        "area_terreno_mediana": 1989.37,
+        "ano_construcao_mediano": 2015.0,
+        "tipo_imovel_predominante": "Apartamento",
+        "top_3_bairros": {
+          "BOA VIAGEM": 5273,
+          "VARZEA": 1050,
+          "CASA AMARELA": 869
+        },
+        "cluster_name": "Novos Premium",
+        "cluster_description": "Apartamentos recentes (2015) em bairros nobres como Boa Viagem, com valor médio-alto e área padrão",
+        "characteristics": [
+          "Construções recentes (mediana: 2015)",
+          "Valor/m² alto (R$ 3.888)",
+          "Área padrão (~98m²)",
+          "Predominância em Boa Viagem",
+          "Maior cluster (37.8%)"
+        ]
+      },
+      {
+        "cluster_id": 1,
+        "total_imoveis": 5235,
+        "percentual": 12.363902600316479,
+        "valor_m2_mediano": 2382.8094633792603,
+        "valor_m2_medio": 2549.8468258160583,
+        "area_construida_mediana": 92.81,
+        "area_construida_media": 112.37764278892074,
+        "area_terreno_mediana": 540.0,
+        "ano_construcao_mediano": 1981.0,
+        "tipo_imovel_predominante": "Apartamento",
+        "top_3_bairros": {
+          "BOA VIAGEM": 525,
+          "IMBIRIBEIRA": 398,
+          "VARZEA": 359
+        },
+        "cluster_name": "Econômicos Antigos",
+        "cluster_description": "Imóveis mais antigos (1981) com menor valor/m², distribuídos em diversos bairros",
+        "characteristics": [
+          "Construções antigas (mediana: 1981)",
+          "Menor valor/m² (R$ 2.383)",
+          "Área média (~93m²)",
+          "Distribuição variada de bairros",
+          "12.4% do total"
+        ]
+      },
+      {
+        "cluster_id": 2,
+        "total_imoveis": 567,
+        "percentual": 1.3391275595758247,
+        "valor_m2_mediano": 4076.205023881125,
+        "valor_m2_medio": 3841.7562692082124,
+        "area_construida_mediana": 177.83,
+        "area_construida_media": 166.0452380952381,
+        "area_terreno_mediana": 52411.0,
+        "ano_construcao_mediano": 2013.0,
+        "tipo_imovel_predominante": "Apartamento",
+        "top_3_bairros": {
+          "IMBIRIBEIRA": 316,
+          "CORDEIRO": 173,
+          "BARRO": 36
+        },
+        "cluster_name": "Amplos Terreno Grande",
+        "cluster_description": "Imóveis diferenciados com grandes terrenos (52.411m²), possivelmente condomínios ou áreas especiais",
+        "characteristics": [
+          "Terreno excepcional (52.411m²)",
+          "Área construída ampla (178m²)",
+          "Valor/m² alto (R$ 4.076)",
+          "Cluster exclusivo (1.3%)",
+          "Predominância Imbiribeira/Cordeiro"
+        ]
+      },
+      {
+        "cluster_id": 3,
+        "total_imoveis": 14940,
+        "percentual": 35.28494839517253,
+        "valor_m2_mediano": 3022.26276114772,
+        "valor_m2_medio": 3147.083306090974,
+        "area_construida_mediana": 94.69,
+        "area_construida_media": 108.66440763052209,
+        "area_terreno_mediana": 1336.4650000000001,
+        "ano_construcao_mediano": 2005.0,
+        "tipo_imovel_predominante": "Apartamento",
+        "top_3_bairros": {
+          "BOA VIAGEM": 4040,
+          "VARZEA": 779,
+          "MADALENA": 689
+        },
+        "cluster_name": "Padrão Intermediário",
+        "cluster_description": "Imóveis de padrão médio (2005) com valor e área intermediários, bem distribuídos",
+        "characteristics": [
+          "Ano construção médio (2005)",
+          "Valor/m² intermediário (R$ 3.022)",
+          "Área padrão (~95m²)",
+          "Segundo maior cluster (35.3%)",
+          "Bem distribuído geograficamente"
+        ]
+      },
+      {
+        "cluster_id": 4,
+        "total_imoveis": 5608,
+        "percentual": 13.244845421695285,
+        "valor_m2_mediano": 4049.2545493747302,
+        "valor_m2_medio": 4253.399165505509,
+        "area_construida_mediana": 248.79,
+        "area_construida_media": 262.6177514265335,
+        "area_terreno_mediana": 2130.0,
+        "ano_construcao_mediano": 2008.0,
+        "tipo_imovel_predominante": "Apartamento",
+        "top_3_bairros": {
+          "BOA VIAGEM": 2496,
+          "MONTEIRO": 421,
+          "ILHA DO RETIRO": 261
+        },
+        "cluster_name": "Grandes Alto Padrão",
+        "cluster_description": "Imóveis amplos (249m²) de alto padrão em bairros nobres, com maior área construída",
+        "characteristics": [
+          "Maior área construída (249m²)",
+          "Valor/m² alto (R$ 4.049)",
+          "Construções relativamente novas (2008)",
+          "Forte presença em Boa Viagem",
+          "13.2% do total"
+        ]
+      }
+    ],
+    "general_stats": {
+      "total_imoveis": 42341,
+      "silhouette_score": 0.5149653952413339,
+      "n_clusters": 5,
+      "features_used": [
+        "area_construida",
+        "area_terreno",
+        "ano_construcao",
+        "padrao_acabamento_Médio",
+        "padrao_acabamento_Simples",
+        "padrao_acabamento_Superior"
+      ],
+      "anos_range": "1946 - 2023",
+      "valor_m2_min": 529.7966494573807,
+      "valor_m2_max": 9413.555519948726,
+      "valor_m2_medio": 3540.451300964941,
+      "area_media": 129.24134243404737
+    },
+    "cluster_names": {
+      "0": "Novos Premium",
+      "1": "Econômicos Antigos",
+      "2": "Amplos Terreno Grande",
+      "3": "Padrão Intermediário",
+      "4": "Grandes Alto Padrão"
+    },
+    "cluster_descriptions": {
+      "0": {
+        "name": "Novos Premium",
+        "description": "Apartamentos recentes (2015) em bairros nobres como Boa Viagem, com valor médio-alto e área padrão",
+        "characteristics": [
+          "Construções recentes (mediana: 2015)",
+          "Valor/m² alto (R$ 3.888)",
+          "Área padrão (~98m²)",
+          "Predominância em Boa Viagem",
+          "Maior cluster (37.8%)"
+        ]
+      },
+      "1": {
+        "name": "Econômicos Antigos",
+        "description": "Imóveis mais antigos (1981) com menor valor/m², distribuídos em diversos bairros",
+        "characteristics": [
+          "Construções antigas (mediana: 1981)",
+          "Menor valor/m² (R$ 2.383)",
+          "Área média (~93m²)",
+          "Distribuição variada de bairros",
+          "12.4% do total"
+        ]
+      },
+      "2": {
+        "name": "Amplos Terreno Grande",
+        "description": "Imóveis diferenciados com grandes terrenos (52.411m²), possivelmente condomínios ou áreas especiais",
+        "characteristics": [
+          "Terreno excepcional (52.411m²)",
+          "Área construída ampla (178m²)",
+          "Valor/m² alto (R$ 4.076)",
+          "Cluster exclusivo (1.3%)",
+          "Predominância Imbiribeira/Cordeiro"
+        ]
+      },
+      "3": {
+        "name": "Padrão Intermediário",
+        "description": "Imóveis de padrão médio (2005) com valor e área intermediários, bem distribuídos",
+        "characteristics": [
+          "Ano construção médio (2005)",
+          "Valor/m² intermediário (R$ 3.022)",
+          "Área padrão (~95m²)",
+          "Segundo maior cluster (35.3%)",
+          "Bem distribuído geograficamente"
+        ]
+      },
+      "4": {
+        "name": "Grandes Alto Padrão",
+        "description": "Imóveis amplos (249m²) de alto padrão em bairros nobres, com maior área construída",
+        "characteristics": [
+          "Maior área construída (249m²)",
+          "Valor/m² alto (R$ 4.049)",
+          "Construções relativamente novas (2008)",
+          "Forte presença em Boa Viagem",
+          "13.2% do total"
+        ]
+      }
+    }
+  },
+  "classification": {
+    "accuracy": 0.8084779785098595,
+    "precision_macro": 0.8077197087116378,
+    "recall_macro": 0.808354760091592,
+    "f1_macro": 0.8079602840045941,
+    "class_metrics": {
+      "Alto Valor": {
+        "precision": 0.8152361254739745,
+        "recall": 0.8217512161223072,
+        "f1-score": 0.8184807060044991,
+        "support": 2878
+      },
+      "Econômico": {
+        "precision": 0.8472612359550562,
+        "recall": 0.8633273703041144,
+        "f1-score": 0.8552188552188552,
+        "support": 2795
+      },
+      "Médio": {
+        "precision": 0.7606617647058823,
+        "recall": 0.7399856938483548,
+        "f1-score": 0.7501812907904278,
+        "support": 2796
+      }
+    },
+    "feature_importance": [
+      {
+        "feature": "ano_construcao",
+        "importance": 0.2516878284414559
+      },
+      {
+        "feature": "area_construida",
+        "importance": 0.21688501012342365
+      },
+      {
+        "feature": "area_terreno",
+        "importance": 0.2103897283045149
+      },
+      {
+        "feature": "bairro_BOA VIAGEM",
+        "importance": 0.028987970103593913
+      },
+      {
+        "feature": "bairro_PINA",
+        "importance": 0.014140946892583925
+      },
+      {
+        "feature": "bairro_VARZEA",
+        "importance": 0.013464381103325561
+      },
+      {
+        "feature": "bairro_IMBIRIBEIRA",
+        "importance": 0.012154628373210432
+      },
+      {
+        "feature": "bairro_MADALENA",
+        "importance": 0.007467597837380755
+      },
+      {
+        "feature": "bairro_IPUTINGA",
+        "importance": 0.007253978015883852
+      },
+      {
+        "feature": "bairro_SANTO AMARO",
+        "importance": 0.007031429076823901
+      }
+    ],
+    "best_params": {
+      "bootstrap": true,
+      "ccp_alpha": 0.0,
+      "class_weight": null,
+      "criterion": "gini",
+      "max_depth": null,
+      "max_features": "sqrt",
+      "max_leaf_nodes": null,
+      "max_samples": null,
+      "min_impurity_decrease": 0.0,
+      "min_samples_leaf": 1,
+      "min_samples_split": 5,
+      "min_weight_fraction_leaf": 0.0,
+      "monotonic_cst": null,
+      "n_estimators": 100,
+      "n_jobs": -1,
+      "oob_score": false,
+      "random_state": 42,
+      "verbose": 0,
+      "warm_start": false
+    }
+  }
+}

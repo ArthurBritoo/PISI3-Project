@@ -60,13 +60,14 @@ def optimize_random_forest():
     start_time = time.time()
 
     # 2.1. Definir o Espaço de Busca (prefixo 'regressor__')
+    # ESPAÇO REDUZIDO para execução mais rápida (tempo estimado: 5-10 min)
     param_dist = {
         # O prefixo 'regressor__' é obrigatório ao otimizar um componente do Pipeline
-        'regressor__n_estimators': [int(x) for x in np.linspace(start = 200, stop = 1000, num = 5)],
-        'regressor__max_depth': [10, 30, 50, None],
-        'regressor__min_samples_split': [2, 5, 10],
-        'regressor__min_samples_leaf': [1, 2, 4],
-        'regressor__max_features': ['sqrt', 'log2'],
+        'regressor__n_estimators': [100, 200, 300],  # Reduzido de 5 para 3 opções
+        'regressor__max_depth': [10, 30, None],      # Reduzido de 4 para 3 opções
+        'regressor__min_samples_split': [2, 5],      # Reduzido de 3 para 2 opções
+        'regressor__min_samples_leaf': [1, 2],       # Reduzido de 3 para 2 opções
+        'regressor__max_features': ['sqrt'],         # Reduzido de 2 para 1 opção
     }
 
     # 2.2. Criar o Pipeline completo
@@ -79,9 +80,9 @@ def optimize_random_forest():
     rf_random = RandomizedSearchCV(
         estimator=rf_pipeline,
         param_distributions=param_dist,
-        n_iter=30,  # Reduzido para 30 para um teste inicial mais rápido
-        cv=5,
-        verbose=1,
+        n_iter=10,  # Reduzido para 10 (10 iter × 3 CV = 30 modelos treinados)
+        cv=3,       # Reduzido de 5 para 3-fold (mais rápido, ainda confiável)
+        verbose=2,  # Aumentado para ver progresso detalhado
         random_state=42,
         n_jobs=-1, # O n_jobs do RS CV também pode ser -1 (para a busca de hiperparâmetros)
         scoring='neg_mean_absolute_error'
